@@ -1,5 +1,5 @@
 <div align="center">
-<img align="center" width="10%" alt="image" src="https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/AlgoGPT.png">
+<img align="center" width="20%" alt="image" src="https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/AlgoGPT.png">
 </div>
 
 # AlgoGPT
