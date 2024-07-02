@@ -15,4 +15,4 @@ Large language models (LLMs) are transforming natural language processing across
  - [Release] Jun, 2024: I release [AlgoGPT-Broker Setup Module](https://github.com/NoobMaster1999/AlgoGPT/blob/main/Broker%20Setup.ipynb)!  🔥[Base Model](https://github.com/NoobMaster1999/AlgoGPT/tree/main/Basic%20Version%20V1.0), [Core Structure](https://arxiv.org/abs/2306.06031)!
 
 ## Model Performace:
-[Base Model] Jun, 2024: [Base Model](https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/Screenshot%202024-07-02%20171707.png) Model Accuracy: 0.43
+[Version 1] Jun, 2024: [Base Model](https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/Screenshot%202024-07-02%20171707.png) Model Accuracy: 0.43
