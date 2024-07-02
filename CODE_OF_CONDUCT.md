@@ -40,16 +40,16 @@ Reports of abusive, harassing, or otherwise unacceptable behavior can be made by
 All complaints will be reviewed and investigated, resulting in a necessary and appropriate response. 
 The project team is obligated to maintain confidentiality concerning the reporter of an incident.
 
-# Enforcement Guidelines
+## Enforcement Guidelines
 
 ### Community managers will use these guidelines to determine consequences for violations of this Code of Conduct
 
-## Correction
+### Correction
 
 - Community Impact: Use of inappropriate language or behavior that is unprofessional or unwelcome.
 - Consequence: A private, written warning from community leaders with clarification about the violation and why it was inappropriate. A public apology may be requested.
 
-## Warning
+### Warning
 
 - Community Impact: A violation through a single incident or series of actions.
 - Consequence: A warning with consequences for continued behavior. This includes avoiding interactions with those enforcing the Code of Conduct for a specified period.
