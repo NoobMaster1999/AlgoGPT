@@ -2,7 +2,7 @@
 <img align="center" width="30%" alt="image" src="https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/AlgoGPT.png">
 </div>
 
-# AlgoGPT: Open-source LLM model train on Indian Derivate and Stock market data.
+# AlgoGPT: Open-source LLM model train on Indian Derivative and Equity market data.
 [![Python 3.8](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![scikit-learn](https://img.shields.io/badge/scikit_learn-1.5-orange.svg)](https://scikit-learn.org/stable/install.html)
 [![Matplotlib](https://img.shields.io/badge/matplotlib-3.9-green.svg)](https://matplotlib.org/stable/users/explain/quick_start.html)
