@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlgoGPT: Live Probabilistic Forecast | Indian Derivatives</title>
+    <link rel="icon" type="image/png" href="img/logo.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Roboto+Slab:wght@600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <header>
+        <button id="theme-toggle" class="theme-toggle-btn">🌙 Dark</button>
+        <div class="container">
+            <div class="header-top">
+                <img src="img/logo.png" alt="AlgoGPT Logo" class="header-logo">
+                <h1 class="project-title">AlgoGPT: Live Probabilistic Forecast</h1>
+            </div>
+            <p class="subtitle">A Live Demo of "AlgoGPT: Foundation Models for Indian Derivatives & Equity Markets"</p>
+            <div class="header-links">
+                <a href="https://github.com/NoobMaster1999/AlgoGPT" target="_blank" class="btn btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                    </svg>
+                    View on GitHub
+                </a>
+                <a href="https://huggingface.co/NeoQuasar/Kronos-small" target="_blank" class="btn btn-secondary">
+                    🤗 Hugging Face Weights
+                </a>
+                <a href="https://arxiv.org/abs/2508.02739" target="_blank" class="btn btn-secondary">
+                    📄 Kronos Paper
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Section 1: The Live Dashboard -->
+        <section id="live-dashboard">
+            <h2>
+                <span id="current-symbol-title">BANKNIFTY Forecast Dashboard</span>
+                <span class="status-badge"><span class="status-dot"></span> Live Model Feed</span>
+            </h2>
+
+            <!-- Controls: Symbol & Interval Tabs -->
+            <div class="controls-bar">
+                <div class="tabs-group">
+                    <button class="tab-btn symbol-tab active" data-symbol="BANKNIFTY">BANKNIFTY</button>
+                    <button class="tab-btn symbol-tab" data-symbol="NIFTY">NIFTY 50</button>
+                    <button class="tab-btn symbol-tab" data-symbol="FINNIFTY">FINNIFTY</button>
+                </div>
+                <div class="tabs-group">
+                    <button class="tab-btn interval-tab active" data-interval="15m">15-Minute</button>
+                    <button class="tab-btn interval-tab" data-interval="1h">1-Hour</button>
+                    <button class="tab-btn interval-tab" data-interval="1d">Daily</button>
+                </div>
+            </div>
+
+            <!-- Metadata Banner -->
+            <div class="metadata" style="margin-bottom: 1.5rem;">
+                <span>Exchange: <strong id="data-exchange-text">NSE (National Stock Exchange of India)</strong></span>
+                <span>Interval: <strong id="data-interval-text">15-Minute</strong></span>
+                <span>Spot Close: <strong id="data-spot-price"
+                        style="color: #2563eb; font-weight: 700;">₹54,450.75</strong></span>
+                <span>Last Updated: <strong id="update-time">--</strong></span>
+                <span>Model: <strong>Kronos-small (BSQ K-Line Tokenizer)</strong></span>
+            </div>
+
+            <!-- Metrics Grid -->
+            <div class="metrics-container">
+                <div class="metric-card">
+                    <h3>Upside Probability (Next Horizon)</h3>
+                    <p class="metric-value green" id="upside-prob">--%</p>
+                    <div class="metric-desc">The model's probability that the price in the forecast horizon will exceed
+                        the last known spot close.</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Volatility Amplification</h3>
+                    <p class="metric-value orange" id="vol-amp-prob">--%</p>
+                    <div class="metric-desc">Probability that forecast volatility over the horizon will exceed rolling
+                        historical volatility.</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Expected Return (&mu;)</h3>
+                    <p class="metric-value green" id="exp-return">--%</p>
+                    <div class="metric-desc">Expected percentage price change across the mean predicted Monte Carlo
+                        trajectory.</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Value at Risk (VaR 95%)</h3>
+                    <p class="metric-value blue" id="var-95">--%</p>
+                    <div class="metric-desc">Maximum expected drawdown boundary at 95% statistical confidence level.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Wrapper -->
+            <div class="chart-wrapper">
+                <div class="chart-header">
+                    <h3>Probabilistic Forecast &amp; Uncertainty Fan</h3>
+                    <div class="chart-toggles">
+                        <button class="view-btn active" data-view="interactive">Interactive Chart</button>
+                        <button class="view-btn" data-view="static">Static Publication View</button>
+                    </div>
+                </div>
+                <p class="chart-desc">
+                    The chart below visualizes historical market prices alongside Kronos probabilistic forecasts. The
+                    orange line represents the mean of <strong>30 Monte Carlo trajectory simulations</strong>,
+                    surrounded by <strong>50% and 90% confidence bands</strong> capturing market regime uncertainty.
+                </p>
+                <div class="chart-container">
+                    <div id="interactive-wrapper" class="interactive-canvas-wrapper">
+                        <canvas id="forecast-chart"></canvas>
+                    </div>
+                    <div id="static-wrapper" style="display: none;">
+                        <img src="img/prediction_chart.png" alt="Probabilistic Price and Volume Forecast Chart"
+                            class="chart-img">
+                    </div>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--subtle-text); margin-top: 0.6rem; text-align: center;">
+                    🕒 <em>All bars strictly conform to NSE Indian market trading hours (09:15 – 15:30 IST, Mon–Fri),
+                        excluding overnight &amp; weekend gaps.</em>
+                </p>
+            </div>
+
+            <!-- Next Horizon Forecast Table -->
+            <div class="table-wrapper">
+                <h3 style="font-family: 'Roboto Slab', serif; margin-bottom: 0.75rem;">Next Horizon Forecast K-Lines
+                    (OHLC & Bounds)</h3>
+                <table class="predictions-table">
+                    <thead>
+                        <tr>
+                            <th>Step / Horizon</th>
+                            <th>Open</th>
+                            <th>High</th>
+                            <th>Low</th>
+                            <th>Close (Mean)</th>
+                            <th>Expected Return</th>
+                            <th>90% Confidence Interval</th>
+                        </tr>
+                    </thead>
+                    <tbody id="predictions-tbody">
+                        <!-- Populated by app.js -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Section 2: Methodology -->
+        <section id="methodology">
+            <h2>Methodology Overview</h2>
+            <p>
+                This demo showcases the predictive capability of <strong>AlgoGPT</strong>, a foundation model
+                architecture adapted for the microstructure and dynamics of Indian equity index derivatives (NIFTY &amp;
+                BANKNIFTY). The forecasting pipeline operates through four modular stages:
+            </p>
+            <div class="methodology-grid">
+                <div class="method-card">
+                    <h4><span>⚡</span> 1. K-Line Tokenization</h4>
+                    <p>Continuous candlestick bars (Open, High, Low, Close, Volume, Amount) are quantized using
+                        <strong>Binary Spherical Quantization (BSQ)</strong> into hierarchical coarse and fine
+                        subtokens, preserving geometric candlestick formations.
+                    </p>
+                </div>
+                <div class="method-card">
+                    <h4><span>🧠</span> 2. Autoregressive Backbone</h4>
+                    <p>The <strong>Kronos Causal Transformer</strong> (4M parameters) processes up to 512 historical
+                        context bars, attending across temporal market patterns to forecast subsequent discrete codebook
+                        tokens.</p>
+                </div>
+                <div class="method-card">
+                    <h4><span>🎲</span> 3. Monte Carlo Fan Sampling</h4>
+                    <p>Rather than generating a fragile single-point prediction, the model performs stochastic
+                        autoregressive sampling ($N=30$ simulation paths) to map the full posterior distribution and
+                        uncertainty cone.</p>
+                </div>
+                <div class="method-card">
+                    <h4><span>📈</span> 4. Derivative Alpha Synthesis</h4>
+                    <p>Derived forecast trajectories are synthesized into actionable quantitative trading signals,
+                        integrated with dynamic stop-loss, position sizing, and Indian Options/Futures execution rules.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: About the Project -->
+        <section id="about-project">
+            <h2>About The AlgoGPT Project</h2>
+            <p>
+                AlgoGPT is an open-source initiative designed to bridge foundational time-series language models with
+                systematic trading in the Indian equity derivatives ecosystem. Built on PyTorch and modern Hugging Face
+                infrastructure, it supports end-to-end data ingestion, tokenizer fine-tuning, autoregressive inference,
+                and walk-forward backtesting.
+            </p>
+            <div class="project-links">
+                <a href="https://github.com/NoobMaster1999/AlgoGPT" class="btn btn-primary" target="_blank">View Project
+                    on GitHub</a>
+                <a href="https://huggingface.co/NeoQuasar/Kronos-small" class="btn btn-secondary" target="_blank">Kronos
+                    Model on Hugging Face</a>
+                <a href="https://arxiv.org/abs/2508.02739" class="btn btn-secondary" target="_blank">Read Research
+                    Paper</a>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 AlgoGPT Project. Licensed under the MIT License.</p>
+            <p class="disclaimer">
+                Disclaimer: Financial time-series forecasts are inherently probabilistic and for research/educational
+                purposes only. Not financial advice. Past performance and foundation model simulations do not guarantee
+                future returns.
+            </p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
