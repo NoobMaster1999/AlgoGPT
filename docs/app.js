@@ -1,5 +1,6 @@
 /**
- * AlgoGPT + Kronos Live Forecast Demo - Interactive Client
+ * AlgoGPT Live Forecast Demo - Interactive Client
+ * Supports dynamic symbol and interval switching (15m, 1h, 1d)
  */
 
 let forecastData = null;
@@ -40,11 +41,11 @@ function updateThemeButton(theme) {
 }
 
 function setupEventListeners() {
-  // Theme button
+  // Theme toggle
   const themeBtn = document.getElementById('theme-toggle');
   if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
 
-  // Symbol buttons
+  // Symbol tabs
   const symbolBtns = document.querySelectorAll('.symbol-tab');
   symbolBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -55,7 +56,7 @@ function setupEventListeners() {
     });
   });
 
-  // Interval buttons
+  // Interval / Timeframe tabs
   const intervalBtns = document.querySelectorAll('.interval-tab');
   intervalBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -88,35 +89,72 @@ async function loadForecastData() {
   }
 }
 
-function renderDashboard() {
-  if (!forecastData || !forecastData[currentSymbol]) return;
+function getActiveData() {
+  if (!forecastData || !forecastData[currentSymbol]) return null;
+  const symData = forecastData[currentSymbol];
+  // Support both nested interval structure and fallback
+  if (symData[currentInterval]) {
+    return symData[currentInterval];
+  }
+  return symData['15m'] || symData;
+}
 
-  const data = forecastData[currentSymbol];
+function renderDashboard() {
+  const data = getActiveData();
+  if (!data) return;
 
   // Update Header & Metadata
-  document.getElementById('current-symbol-title').textContent = `${data.symbol} Forecast Dashboard`;
-  document.getElementById('update-time').textContent = data.last_updated;
-  document.getElementById('data-interval-text').textContent = data.interval;
-  document.getElementById('data-exchange-text').textContent = data.exchange;
+  const titleEl = document.getElementById('current-symbol-title');
+  if (titleEl) {
+    titleEl.textContent = `${data.symbol} (${data.interval}) Forecast Dashboard`;
+  }
+
+  const timeEl = document.getElementById('update-time');
+  if (timeEl) timeEl.textContent = data.last_updated;
+
+  const intvEl = document.getElementById('data-interval-text');
+  if (intvEl) intvEl.textContent = data.interval;
+
+  const exchEl = document.getElementById('data-exchange-text');
+  if (exchEl) exchEl.textContent = data.exchange;
+
+  const spotEl = document.getElementById('data-spot-price');
+  if (spotEl && data.spot_close) {
+    spotEl.textContent = `₹${data.spot_close.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  }
 
   // Update Metrics
   const metrics = data.metrics;
   const upsideEl = document.getElementById('upside-prob');
-  upsideEl.textContent = `${metrics.upside_prob}%`;
-  upsideEl.className = 'metric-value ' + (metrics.upside_prob >= 50 ? 'green' : 'orange');
+  if (upsideEl) {
+    upsideEl.textContent = `${metrics.upside_prob}%`;
+    upsideEl.className = 'metric-value ' + (metrics.upside_prob >= 50 ? 'green' : 'orange');
+  }
 
   const volEl = document.getElementById('vol-amp-prob');
-  volEl.textContent = `${metrics.vol_amp_prob}%`;
-  volEl.className = 'metric-value ' + (metrics.vol_amp_prob > 60 ? 'orange' : 'blue');
+  if (volEl) {
+    volEl.textContent = `${metrics.vol_amp_prob}%`;
+    volEl.className = 'metric-value ' + (metrics.vol_amp_prob > 60 ? 'orange' : 'blue');
+  }
 
   const expReturnEl = document.getElementById('exp-return');
-  const retPrefix = metrics.expected_return >= 0 ? '+' : '';
-  expReturnEl.textContent = `${retPrefix}${metrics.expected_return}%`;
-  expReturnEl.className = 'metric-value ' + (metrics.expected_return >= 0 ? 'green' : 'orange');
+  if (expReturnEl) {
+    const retPrefix = metrics.expected_return >= 0 ? '+' : '';
+    expReturnEl.textContent = `${retPrefix}${metrics.expected_return}%`;
+    expReturnEl.className = 'metric-value ' + (metrics.expected_return >= 0 ? 'green' : 'orange');
+  }
 
   const varEl = document.getElementById('var-95');
-  varEl.textContent = `${metrics.var_95}%`;
-  varEl.className = 'metric-value ' + (Math.abs(metrics.var_95) > 1.5 ? 'purple' : 'blue');
+  if (varEl) {
+    varEl.textContent = `${metrics.var_95}%`;
+    varEl.className = 'metric-value ' + (Math.abs(metrics.var_95) > 1.5 ? 'purple' : 'blue');
+  }
+
+  // Update Chart Description with Horizon Description
+  const chartDescEl = document.querySelector('.chart-desc');
+  if (chartDescEl && data.horizon_desc) {
+    chartDescEl.innerHTML = `The chart below visualizes <strong>${data.symbol}</strong> historical prices alongside Kronos probabilistic forecasts for the <strong>${data.horizon_desc}</strong>. The orange line represents the mean of <strong>30 Monte Carlo trajectory simulations</strong>, surrounded by <strong>50% and 90% confidence bands</strong> capturing market regime uncertainty.`;
+  }
 
   // Render Predictions Table
   renderTable(data);
@@ -124,6 +162,16 @@ function renderDashboard() {
   // Render Chart
   if (viewMode === 'interactive') {
     renderInteractiveChart();
+  } else {
+    updateStaticChart();
+  }
+}
+
+function updateStaticChart() {
+  const chartImg = document.querySelector('.chart-img');
+  if (chartImg) {
+    chartImg.src = `img/prediction_chart_${currentInterval}.png?t=${Date.now()}`;
+    chartImg.onerror = () => { chartImg.src = `img/prediction_chart.png?t=${Date.now()}`; };
   }
 }
 
@@ -132,18 +180,19 @@ function toggleChartView() {
   const staticWrapper = document.getElementById('static-wrapper');
 
   if (viewMode === 'interactive') {
-    interactiveWrapper.style.display = 'block';
-    staticWrapper.style.display = 'none';
+    if (interactiveWrapper) interactiveWrapper.style.display = 'block';
+    if (staticWrapper) staticWrapper.style.display = 'none';
     renderInteractiveChart();
   } else {
-    interactiveWrapper.style.display = 'none';
-    staticWrapper.style.display = 'block';
+    if (interactiveWrapper) interactiveWrapper.style.display = 'none';
+    if (staticWrapper) staticWrapper.style.display = 'block';
+    updateStaticChart();
   }
 }
 
 function renderTable(data) {
   const tbody = document.getElementById('predictions-tbody');
-  if (!tbody) return;
+  if (!tbody || !data.predictions) return;
   tbody.innerHTML = '';
 
   const lastClose = data.historical[data.historical.length - 1].close;
@@ -155,7 +204,7 @@ function renderTable(data) {
     const deltaStr = (delta >= 0 ? '+' : '') + delta.toFixed(2) + '%';
 
     tr.innerHTML = `
-      <td>Step +${idx + 1} (${p.time.split(' ')[1] || p.time})</td>
+      <td>Step +${idx + 1} (${p.time})</td>
       <td class="price-cell">₹${p.open.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
       <td class="price-cell">₹${p.high.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
       <td class="price-cell">₹${p.low.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
@@ -168,12 +217,15 @@ function renderTable(data) {
 }
 
 function renderInteractiveChart() {
-  if (!forecastData || !forecastData[currentSymbol]) return;
-  const data = forecastData[currentSymbol];
+  const data = getActiveData();
+  if (!data) return;
+
   const hist = data.historical.slice(-25); // latest 25 bars
   const pred = data.predictions;
 
-  const ctx = document.getElementById('forecast-chart').getContext('2d');
+  const canvas = document.getElementById('forecast-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
   if (chartInstance) {
     chartInstance.destroy();
   }
@@ -182,15 +234,31 @@ function renderInteractiveChart() {
   const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
   const textColor = isDark ? '#94a3b8' : '#64748b';
 
+  // Format labels nicely with Indian market close & session awareness
+  const formatLabel = (tStr) => {
+    if (tStr.includes(' ')) {
+      return tStr.split(' ')[1]; // HH:MM
+    }
+    return tStr.slice(5); // MM-DD for daily
+  };
+
   const labels = [
-    ...hist.map(b => b.time.split(' ')[1] || b.time),
-    ...pred.map((p, i) => `+${i+1} (${p.time.split(' ')[1] || p.time})`)
+    ...hist.map((b) => {
+      if (b.time.endsWith('15:30')) return `${b.time.split(' ')[1]} Close`;
+      return formatLabel(b.time);
+    }),
+    ...pred.map((p, i) => {
+      const isNewDay = i === 0 || p.time.split(' ')[0] !== pred[i-1].time.split(' ')[0];
+      const timePart = formatLabel(p.time);
+      const datePart = isNewDay && p.time.includes(' ') ? `${p.time.slice(5, 10)} ` : '';
+      return `+${i+1} (${datePart}${timePart})`;
+    })
   ];
 
   const histPrices = hist.map(b => b.close);
   const lastPrice = histPrices[histPrices.length - 1];
 
-  // Align prediction arrays
+  // Align prediction arrays with anchor point
   const nullPadding = new Array(hist.length - 1).fill(null);
   const meanForecast = [...nullPadding, lastPrice, ...pred.map(p => p.close)];
   const upper90 = [...nullPadding, lastPrice, ...pred.map(p => p.upper_90)];
@@ -200,7 +268,7 @@ function renderInteractiveChart() {
 
   const datasets = [
     {
-      label: 'Historical Price',
+      label: `Historical (${data.interval})`,
       data: [...histPrices, ...new Array(pred.length).fill(null)],
       borderColor: '#2563eb',
       backgroundColor: 'transparent',
@@ -252,7 +320,7 @@ function renderInteractiveChart() {
     }
   ];
 
-  // Add 3 sample Monte Carlo paths
+  // Add sample Monte Carlo paths
   if (pred[0].samples && pred[0].samples.length >= 3) {
     for (let s = 0; s < 3; s++) {
       const sPath = [...nullPadding, lastPrice, ...pred.map(p => p.samples[s])];
@@ -277,6 +345,7 @@ function renderInteractiveChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 350 },
       interaction: {
         mode: 'index',
         intersect: false
@@ -288,11 +357,21 @@ function renderInteractiveChart() {
           labels: {
             color: textColor,
             font: { size: 11, family: 'Inter' },
-            filter: (item) => !item.text.includes('Lower') // hide lower bounds in legend
+            filter: (item) => !item.text.includes('Lower')
           }
         },
         tooltip: {
           callbacks: {
+            title: function(tooltipItems) {
+              if (!tooltipItems.length) return '';
+              const idx = tooltipItems[0].dataIndex;
+              if (idx < hist.length) {
+                return `${hist[idx].time} IST (NSE Historical Market Bar)`;
+              } else {
+                const pIdx = idx - hist.length;
+                return `${pred[pIdx].time} IST (Kronos Forecast Step +${pIdx + 1})`;
+              }
+            },
             label: function(context) {
               if (context.parsed.y === null) return null;
               return `${context.dataset.label}: ₹${context.parsed.y.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
@@ -303,7 +382,7 @@ function renderInteractiveChart() {
       scales: {
         x: {
           grid: { color: gridColor },
-          ticks: { color: textColor, maxTicksLimit: 12, font: { size: 10 } }
+          ticks: { color: textColor, maxTicksLimit: 14, font: { size: 10 } }
         },
         y: {
           grid: { color: gridColor },
