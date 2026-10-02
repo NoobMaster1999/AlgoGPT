@@ -18,6 +18,14 @@ A clean, modular codebase for finetuning the Kronos foundation model on NIFTY/BA
     <img src="Assests/overview.png" alt="" align="center" width="500px" />
 </p>
 
+## Core Algorithem:
+ - [Release] Jun, 2024: Released [AlgoGPT-Broker Setup Module](https://github.com/NoobMaster1999/AlgoGPT/blob/main/Broker%20Setup.ipynb)!  🔥[Base Model](https://github.com/NoobMaster1999/AlgoGPT/tree/main/Basic%20Version%20V1.0), [Core Structure](https://arxiv.org/abs/2306.06031)!
+ -  [Release v2.0] October, 2026: Upgraded with [Kronos Foundation Model](https://github.com/shiyu-coder/Kronos) (BSQ K-Line Tokenizer + Causal Autoregressive Transformer), multi-symbol walk-forward backtesting, and automated market data feeds (Yahoo Finance, Upstox, NSE).
+
+## Model Performace:
+ - [Version 1.0] April, 2024: [Base Model](https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/Screenshot%202024-07-02%20171707.png) Model Accuracy: 0.43
+ -  [Version 2.0] October, 2026: [Kronos Foundation Engine](https://github.com/shiyu-coder/Kronos) (`NeoQuasar/Kronos-small` & `Kronos-Tokenizer-base`) with continuous BSQ candlestick tokenization, multi-step autoregressive price path generation, and systematic options derivative backtesting with risk metrics (Sharpe Ratio, Alpha, Max Drawdown).
+
 ## Architecture
 
 ```
@@ -31,13 +39,6 @@ algogpt/
 └── requirements.txt # Dependencies
 ```
 
-## Core Algorithem:
- - [Release] Jun, 2024: Released [AlgoGPT-Broker Setup Module](https://github.com/NoobMaster1999/AlgoGPT/blob/main/Broker%20Setup.ipynb)!  🔥[Base Model](https://github.com/NoobMaster1999/AlgoGPT/tree/main/Basic%20Version%20V1.0), [Core Structure](https://arxiv.org/abs/2306.06031)!
- -  [Release v2.0] October, 2026: Upgraded with [Kronos Foundation Model](https://github.com/shiyu-coder/Kronos) (BSQ K-Line Tokenizer + Causal Autoregressive Transformer), multi-symbol walk-forward backtesting, and automated market data feeds (Yahoo Finance, Upstox, NSE).
-
-## Model Performace:
- - [Version 1.0] April, 2024: [Base Model](https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/Screenshot%202024-07-02%20171707.png) Model Accuracy: 0.43
- -  [Version 2.0] October, 2026: [Kronos Foundation Engine](https://github.com/shiyu-coder/Kronos) (`NeoQuasar/Kronos-small` & `Kronos-Tokenizer-base`) with continuous BSQ candlestick tokenization, multi-step autoregressive price path generation, and systematic options derivative backtesting with risk metrics (Sharpe Ratio, Alpha, Max Drawdown).
 
 ## Quick Start
 ```bash
