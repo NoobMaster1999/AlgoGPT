@@ -2,7 +2,7 @@
 <img align="center" width="30%" alt="image" src="https://github.com/NoobMaster1999/AlgoGPT/blob/main/Assests/AlgoGPT.png">
 </div>
 
-# AlgoGPT: Open-Source AI Foundation Model(Kronos) for Indian Derivatives and Equity Market Data
+# AlgoGPT: Open-Source AI Model for Indian Derivatives and Equity Market Data
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Kronos-yellow.svg)](https://huggingface.co/NeoQuasar/Kronos-small)
@@ -13,7 +13,10 @@
 
 
 
-A clean, modular codebase for finetuning the Kronos foundation model on NIFTY/BANKNIFTY data and running systematic trading strategies.
+> AlgoGPT is the **first open-source model** for financial candlesticks (K-lines).
+> Built with Kronos **open-source foundation model**.
+> Trained on data from **NSE & BSE**.
+
 <p align="center">
     <img src="Assests/overview.png" alt="" align="center" width="500px" />
 </p>
