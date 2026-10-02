@@ -14,6 +14,9 @@
 
 
 A clean, modular codebase for finetuning the Kronos foundation model on NIFTY/BANKNIFTY data and running systematic trading strategies.
+<p align="center">
+    <img src="Assests/overview.png" alt="" align="center" width="500px" />
+</p>
 
 ## Architecture
 
