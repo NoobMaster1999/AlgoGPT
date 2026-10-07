@@ -1,5 +1,6 @@
 /**
  * AlgoGPT Live Forecast Demo - Interactive Client
+ * Fathomless-Inspired Redesign with Immersive Particle System
  * Supports dynamic symbol and interval switching (15m, 1h, 1d)
  */
 
@@ -11,32 +12,329 @@ let viewMode = 'interactive'; // 'interactive' or 'static'
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
+  initParticles();
+  initScrollAnimations();
+  initDepthMeter();
+  initNavbar();
   setupEventListeners();
   await loadForecastData();
+
+  // URL parameters support for direct linking & testing
+  const urlParams = new URLSearchParams(window.location.search);
+  const symParam = urlParams.get('symbol');
+  if (symParam && forecastData && forecastData[symParam]) {
+    currentSymbol = symParam;
+    document.querySelectorAll('.symbol-tab').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-symbol') === symParam);
+    });
+  }
+  const intvParam = urlParams.get('interval');
+  if (intvParam) {
+    currentInterval = intvParam;
+    document.querySelectorAll('.interval-tab').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-interval') === intvParam);
+    });
+  }
+  const viewParam = urlParams.get('view');
+  if (viewParam === 'static') {
+    viewMode = 'static';
+    document.querySelectorAll('.view-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-view') === 'static');
+    });
+    const interactiveWrapper = document.getElementById('interactive-wrapper');
+    const staticWrapper = document.getElementById('static-wrapper');
+    if (interactiveWrapper) interactiveWrapper.style.display = 'none';
+    if (staticWrapper) staticWrapper.style.display = 'block';
+  }
+
   renderDashboard();
 });
 
+/* ==========================================================================
+   PARTICLE SYSTEM – Floating Marine Snow / Bioluminescence
+   ========================================================================== */
+function initParticles() {
+  const canvas = document.getElementById('particle-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  let particles = [];
+  let mouse = { x: -1000, y: -1000 };
+  let animId;
+  const PARTICLE_COUNT = 80;
+  const MAX_DEPTH_PARTICLE_SIZE = 3;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  document.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  // Create particles
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push(createParticle());
+  }
+
+  function createParticle() {
+    const scrollFactor = window.scrollY / (document.body.scrollHeight - window.innerHeight || 1);
+    return {
+      x: Math.random() * (canvas.width || window.innerWidth),
+      y: Math.random() * (canvas.height || window.innerHeight),
+      size: Math.random() * MAX_DEPTH_PARTICLE_SIZE + 0.5,
+      speedX: (Math.random() - 0.5) * 0.3,
+      speedY: Math.random() * 0.15 + 0.05, // gentle drift downward (marine snow)
+      opacity: Math.random() * 0.5 + 0.1,
+      hue: Math.random() > 0.7 ? 180 + Math.random() * 40 : 170 + Math.random() * 20, // cyan-teal range
+      pulseSpeed: Math.random() * 0.02 + 0.005,
+      pulsePhase: Math.random() * Math.PI * 2,
+      bioluminescent: Math.random() > 0.85 // ~15% of particles glow
+    };
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const scrollProgress = window.scrollY / (document.body.scrollHeight - window.innerHeight || 1);
+    // Deepen ambient as user scrolls
+    const ambientAlpha = 0.02 + scrollProgress * 0.03;
+
+    particles.forEach(p => {
+      // Update position
+      p.x += p.speedX;
+      p.y += p.speedY;
+
+      // Mouse proximity interaction
+      const dx = mouse.x - p.x;
+      const dy = mouse.y - p.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 150) {
+        const force = (150 - dist) / 150;
+        p.x -= dx * force * 0.008;
+        p.y -= dy * force * 0.008;
+      }
+
+      // Wrap around
+      if (p.y > canvas.height + 10) { p.y = -10; p.x = Math.random() * canvas.width; }
+      if (p.x > canvas.width + 10) p.x = -10;
+      if (p.x < -10) p.x = canvas.width + 10;
+
+      // Pulsing opacity for bioluminescence
+      let drawOpacity = p.opacity;
+      if (p.bioluminescent) {
+        const pulse = Math.sin(Date.now() * p.pulseSpeed + p.pulsePhase) * 0.5 + 0.5;
+        drawOpacity = p.opacity + pulse * 0.4;
+      }
+
+      // Draw particle with theme awareness
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = isLight 
+        ? `hsla(${p.hue}, 70%, 40%, ${drawOpacity * 0.75})` 
+        : `hsla(${p.hue}, 60%, 75%, ${drawOpacity})`;
+      ctx.fill();
+
+      // Glow effect for bioluminescent particles
+      if (p.bioluminescent && drawOpacity > 0.3) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 4, 0, Math.PI * 2);
+        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
+        if (isLight) {
+          gradient.addColorStop(0, `hsla(${p.hue}, 80%, 45%, ${drawOpacity * 0.25})`);
+          gradient.addColorStop(1, `hsla(${p.hue}, 80%, 45%, 0)`);
+        } else {
+          gradient.addColorStop(0, `hsla(${p.hue}, 70%, 70%, ${drawOpacity * 0.15})`);
+          gradient.addColorStop(1, `hsla(${p.hue}, 70%, 70%, 0)`);
+        }
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
+    });
+
+    animId = requestAnimationFrame(animate);
+  }
+
+  animate();
+}
+
+/* ==========================================================================
+   SCROLL FADE-IN ANIMATIONS
+   ========================================================================== */
+function initScrollAnimations() {
+  const elements = document.querySelectorAll('.fade-in, .fade-in-stagger');
+  
+  // Instantly activate any element currently in or near viewport
+  elements.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight * 1.1) {
+      el.classList.add('visible');
+    }
+  });
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.05, rootMargin: '0px 0px -20px 0px' });
+
+  elements.forEach(el => {
+    observer.observe(el);
+  });
+}
+
+/* ==========================================================================
+   DEPTH METER & TELEMETRY – Scroll Progress & Oceanic Zones
+   ========================================================================== */
+function initDepthMeter() {
+  const indicator = document.getElementById('depth-indicator');
+  const counter = document.getElementById('depth-counter');
+  const zoneEl = document.getElementById('depth-zone');
+  const hudZoneText = document.getElementById('hud-zone-text');
+  if (!indicator && !counter) return;
+
+  function update() {
+    const scrollHeight = document.body.scrollHeight - window.innerHeight;
+    const progress = scrollHeight > 0 ? (window.scrollY / scrollHeight) : 0;
+    const percent = Math.min(Math.max(progress * 100, 0), 100);
+
+    if (indicator) {
+      indicator.style.height = `${percent}%`;
+    }
+
+    // Depth descending down to -4,500m (Abyssal zone)
+    const currentDepth = Math.round(progress * 4500);
+    if (counter) {
+      counter.textContent = `-${currentDepth.toLocaleString()}m`;
+    }
+
+    // Dynamic ocean zone based on descent depth
+    let zone = 'EPIPELAGIC';
+    let hudText = 'SURFACE • LIVE MODEL';
+
+    if (currentDepth > 3500) {
+      zone = 'ABYSSOPELAGIC';
+      hudText = 'ABYSS • CORE ENGINE';
+    } else if (currentDepth > 1800) {
+      zone = 'BATHYPELAGIC';
+      hudText = 'MIDNIGHT • METHODOLOGY';
+    } else if (currentDepth > 400) {
+      zone = 'MESOPELAGIC';
+      hudText = 'TWILIGHT • FORECAST CONE';
+    }
+
+    if (zoneEl) zoneEl.textContent = zone;
+    if (hudZoneText) hudZoneText.textContent = hudText;
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+}
+
+/* ==========================================================================
+   FIXED NAVBAR – Scroll-aware opacity, Mobile Drawer & Scroll Spy
+   ========================================================================== */
+function initNavbar() {
+  const nav = document.getElementById('main-nav');
+  const sections = document.querySelectorAll('section[id], header');
+  const navLinks = document.querySelectorAll('.nav-link');
+  const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+  const navLinksContainer = document.getElementById('nav-links');
+
+  // Mobile drawer toggle
+  if (mobileMenuBtn && navLinksContainer) {
+    mobileMenuBtn.addEventListener('click', () => {
+      const isOpen = navLinksContainer.classList.toggle('open');
+      mobileMenuBtn.classList.toggle('active', isOpen);
+      mobileMenuBtn.setAttribute('aria-expanded', isOpen);
+    });
+
+    // Auto-close drawer on link click
+    navLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        navLinksContainer.classList.remove('open');
+        mobileMenuBtn.classList.remove('active');
+        mobileMenuBtn.setAttribute('aria-expanded', 'false');
+      });
+    });
+  }
+
+  // Scroll listener for sticky navbar & scroll-spy
+  window.addEventListener('scroll', () => {
+    if (nav) {
+      if (window.scrollY > 60) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    }
+
+    // Scroll spy: activate the corresponding nav item
+    const scrollPos = window.scrollY + 140;
+    let currentId = '';
+
+    sections.forEach(sec => {
+      const top = sec.offsetTop;
+      const height = sec.offsetHeight;
+      if (scrollPos >= top && scrollPos < top + height) {
+        currentId = sec.getAttribute('id');
+      }
+    });
+
+    if (currentId) {
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href === `#${currentId}`) {
+          link.classList.add('active');
+        } else {
+          link.classList.remove('active');
+        }
+      });
+    }
+  }, { passive: true });
+}
+
 function initTheme() {
-  const savedTheme = localStorage.getItem('algogpt_theme') || 'light';
+  const urlParams = new URLSearchParams(window.location.search);
+  const themeParam = urlParams.get('theme');
+  // Default to dark (Fathomless deep-sea aesthetic)
+  const savedTheme = themeParam || localStorage.getItem('algogpt_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeButton(savedTheme);
 }
 
 function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
   const next = current === 'light' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('algogpt_theme', next);
   updateThemeButton(next);
+  
   if (viewMode === 'interactive' && chartInstance) {
     renderInteractiveChart();
+  } else if (viewMode === 'static') {
+    updateStaticChart();
   }
 }
 
 function updateThemeButton(theme) {
   const btn = document.getElementById('theme-toggle');
   if (btn) {
-    btn.textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+    const isMobile = window.innerWidth <= 480;
+    if (isMobile) {
+      btn.textContent = theme === 'dark' ? '◐ LIGHT' : '◑ DARK';
+      btn.title = theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+    } else {
+      btn.textContent = theme === 'dark' ? '◐ LIGHT' : '◑ DARK';
+      btn.title = theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+    }
   }
 }
 
@@ -77,11 +375,24 @@ function setupEventListeners() {
       toggleChartView();
     });
   });
+
+  // Live Feed Refresh button
+  const refreshBtn = document.getElementById('refresh-data-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.classList.add('refreshing');
+      await loadForecastData();
+      renderDashboard();
+      setTimeout(() => {
+        refreshBtn.classList.remove('refreshing');
+      }, 500);
+    });
+  }
 }
 
 async function loadForecastData() {
   try {
-    const res = await fetch('data/forecast_data.json');
+    const res = await fetch(`data/forecast_data.json?t=${Date.now()}`);
     if (!res.ok) throw new Error('Network error loading forecast data');
     forecastData = await res.json();
   } catch (err) {
@@ -170,8 +481,15 @@ function renderDashboard() {
 function updateStaticChart() {
   const chartImg = document.querySelector('.chart-img');
   if (chartImg) {
-    chartImg.src = `img/prediction_chart_${currentInterval}.png?t=${Date.now()}`;
-    chartImg.onerror = () => { chartImg.src = `img/prediction_chart.png?t=${Date.now()}`; };
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const prefix = isLight ? 'prediction_chart_light' : 'prediction_chart';
+    chartImg.src = `img/${prefix}_${currentSymbol}_${currentInterval}.png?t=${Date.now()}`;
+    chartImg.onerror = () => {
+      chartImg.src = `img/${prefix}_${currentInterval}.png?t=${Date.now()}`;
+      chartImg.onerror = () => {
+        chartImg.src = `img/${prefix}.png?t=${Date.now()}`;
+      };
+    };
   }
 }
 
@@ -210,7 +528,7 @@ function renderTable(data) {
       <td class="price-cell">₹${p.low.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
       <td class="price-cell">₹${p.close.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
       <td class="${deltaClass} price-cell">${deltaStr}</td>
-      <td style="color: var(--subtle-text)">₹${p.lower_10.toFixed(1)} — ₹${p.upper_90.toFixed(1)}</td>
+      <td style="color: var(--text-muted)">₹${p.lower_10.toLocaleString('en-IN', {minimumFractionDigits: 2})} — ₹${p.upper_90.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -230,9 +548,15 @@ function renderInteractiveChart() {
     chartInstance.destroy();
   }
 
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-  const textColor = isDark ? '#94a3b8' : '#64748b';
+  // Theme-aware palette for the chart
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor = isLight ? 'rgba(2, 132, 199, 0.08)' : 'rgba(100, 210, 236, 0.06)';
+  const textColor = isLight ? '#475569' : '#5a6a82';
+  const histColor = isLight ? '#0284c7' : '#64d2ec';
+  const tooltipBg = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(5, 12, 24, 0.92)';
+  const tooltipTitle = isLight ? '#0a192f' : '#edf0f7';
+  const tooltipBody = isLight ? '#334e68' : '#8a99b2';
+  const tooltipBorder = isLight ? 'rgba(2, 132, 199, 0.3)' : 'rgba(100, 210, 236, 0.25)';
 
   // Format labels nicely with Indian market close & session awareness
   const formatLabel = (tStr) => {
@@ -270,9 +594,9 @@ function renderInteractiveChart() {
     {
       label: `Historical (${data.interval})`,
       data: [...histPrices, ...new Array(pred.length).fill(null)],
-      borderColor: '#2563eb',
+      borderColor: histColor,
       backgroundColor: 'transparent',
-      borderWidth: 2.5,
+      borderWidth: 2,
       pointRadius: 1.5,
       tension: 0.15
     },
@@ -327,7 +651,7 @@ function renderInteractiveChart() {
       datasets.push({
         label: `MC Simulation Path #${s+1}`,
         data: sPath,
-        borderColor: 'rgba(249, 115, 22, 0.35)',
+        borderColor: isLight ? 'rgba(234, 88, 12, 0.45)' : 'rgba(249, 115, 22, 0.35)',
         borderWidth: 1,
         borderDash: [2, 2],
         pointRadius: 0,
@@ -361,6 +685,16 @@ function renderInteractiveChart() {
           }
         },
         tooltip: {
+          backgroundColor: tooltipBg,
+          titleColor: tooltipTitle,
+          bodyColor: tooltipBody,
+          borderColor: tooltipBorder,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 6,
+          titleFont: { size: 11, family: 'JetBrains Mono', weight: '600' },
+          bodyFont: { size: 11, family: 'JetBrains Mono' },
+          boxPadding: 4,
           callbacks: {
             title: function(tooltipItems) {
               if (!tooltipItems.length) return '';
