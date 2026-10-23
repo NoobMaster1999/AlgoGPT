@@ -464,7 +464,7 @@ function renderDashboard() {
   // Update Chart Description with Horizon Description
   const chartDescEl = document.querySelector('.chart-desc');
   if (chartDescEl && data.horizon_desc) {
-    chartDescEl.innerHTML = `The chart below visualizes <strong>${data.symbol}</strong> historical prices alongside Kronos probabilistic forecasts for the <strong>${data.horizon_desc}</strong>. The orange line represents the mean of <strong>30 Monte Carlo trajectory simulations</strong>, surrounded by <strong>50% and 90% confidence bands</strong> capturing market regime uncertainty.`;
+    chartDescEl.innerHTML = `The chart below visualizes <strong>${data.symbol}</strong> historical prices alongside Kronos probabilistic forecasts for the <strong>${data.horizon_desc}</strong>. The orange line represents the median of <strong>50 Monte Carlo trajectory simulations</strong>, surrounded by <strong>50% and 90% confidence bands</strong> capturing market regime uncertainty.`;
   }
 
   // Render Predictions Table
