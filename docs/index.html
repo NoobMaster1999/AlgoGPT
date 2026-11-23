@@ -1,289 +1,54 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AlgoGPT: Live Probabilistic Forecast | Indian Derivatives</title>
-    <meta name="description"
-        content="AlgoGPT — a foundation model for Indian equity derivatives. Live probabilistic forecasts using the Kronos autoregressive transformer with Monte Carlo sampling and uncertainty fans.">
-    <link rel="icon" type="image/png" href="img/logo.png">
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-        rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101b26">
+  <meta name="description" content="Explore published Indian index forecasts, compare outcomes, and inspect Kronos forecast accuracy.">
+  <title>AlgoGPT · Index forecast dashboard</title>
+  <link rel="icon" href="img/logo.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script><script src="pilot.js" defer></script>
 </head>
-
 <body>
-    <!-- Floating Particle Canvas -->
-    <canvas id="particle-canvas"></canvas>
-
-    <!-- Left Edge HUD Telemetry -->
-    <div class="hud-coords" aria-hidden="true">
-        <span class="hud-tag">NSE MUMBAI 18.92°N 72.83°E</span>
-        <span class="hud-sep">//</span>
-        <span class="hud-zone-text" id="hud-zone-text">SURFACE • LIVE MODEL</span>
+  <a class="skip" href="#live-dashboard">Skip to dashboard</a>
+  <header>
+    <div class="nav shell">
+      <a class="brand" href="./"><img src="img/logo.png" alt="">AlgoGPT</a>
+      <nav aria-label="Main navigation"><a href="#live-dashboard">Dashboard</a><a href="#track-record">Track record</a><a href="#methodology">Methodology</a></nav>
+      <button id="theme-toggle" type="button">Light theme</button>
     </div>
-
-    <!-- Depth Meter HUD (Right Side) -->
-    <div class="depth-meter" id="depth-meter" aria-hidden="true">
-        <div class="depth-counter" id="depth-counter">0</div>
-        <div class="depth-track">
-            <div class="depth-indicator" id="depth-indicator"></div>
-        </div>
-        <div class="depth-zone" id="depth-zone">1</div>
+  </header>
+  <main class="shell" id="live-dashboard">
+    <div class="page-heading"><div><p class="eyebrow">Indian index research</p><h1>Forecast dashboard</h1></div><button id="refresh-data-btn" type="button">Refresh data</button></div>
+    <p id="feed-message" role="status"></p>
+    <div class="controls">
+      <div class="switches" role="group" aria-label="Index"><button class="symbol-tab" data-symbol="NIFTY">NIFTY 50</button><button class="symbol-tab" data-symbol="BANKNIFTY">BANKNIFTY</button><button class="symbol-tab" data-symbol="FINNIFTY">FINNIFTY</button></div>
+      <div class="switches" role="group" aria-label="Bar interval"><button class="interval-tab" data-interval="15m">15 min</button><button class="interval-tab" data-interval="1h">1 hour</button><button class="interval-tab" data-interval="1d">Daily</button></div>
     </div>
-
-    <header>
-        <!-- Fixed Navigation Bar -->
-        <nav id="main-nav" class="nav-bar">
-            <div class="nav-left">
-                <a href="#" class="nav-brand-link">
-                    <img src="img/logo.png" alt="AlgoGPT" class="nav-logo">
-                    <span class="nav-brand">AlgoGPT</span>
-                </a>
-            </div>
-            <div class="nav-links" id="nav-links">
-                <a href="#live-dashboard" class="nav-link active">Dashboard</a>
-                <a href="#methodology" class="nav-link">Methodology</a>
-                <a href="#about-project" class="nav-link">About</a>
-            </div>
-            <div class="nav-actions">
-                <a href="https://github.com/NoobMaster1999/AlgoGPT" target="_blank" rel="noopener noreferrer"
-                    class="nav-cta">
-                    View Source <span class="nav-arrow">↗</span>
-                </a>
-                <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle light or dark theme">◐
-                    LIGHT</button>
-                <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation menu"
-                    aria-expanded="false">
-                    <span class="hamburger-bar"></span>
-                    <span class="hamburger-bar"></span>
-                    <span class="hamburger-bar"></span>
-                </button>
-            </div>
-        </nav>
-
-        <div class="container">
-            <div class="header-top">
-                <img src="img/logo.png" alt="AlgoGPT Logo" class="header-logo">
-                <h1 class="project-title">AlgoGPT</h1>
-            </div>
-            <p class="subtitle">Live Probabilistic Forecast for Indian Derivatives & Equity Markets —
-                powered by the Kronos Foundation Model with Monte Carlo trajectory sampling.</p>
-            <div class="header-links">
-                <a href="https://github.com/NoobMaster1999/AlgoGPT" target="_blank" rel="noopener noreferrer"
-                    class="btn btn-primary">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                    </svg>
-                    GitHub
-                </a>
-                <a href="https://huggingface.co/NeoQuasar/Kronos-small" target="_blank" rel="noopener noreferrer"
-                    class="btn btn-secondary">
-                    🤗 Kronos Weights
-                </a>
-                <a href="https://arxiv.org/abs/2508.02739" target="_blank" rel="noopener noreferrer"
-                    class="btn btn-secondary">
-                    📄 Paper
-                </a>
-            </div>
-        </div>
-    </header>
-
-    <main class="container">
-        <!-- Section 1: The Live Dashboard -->
-        <section id="live-dashboard" class="fade-in">
-            <h2>
-                <span id="current-symbol-title">BANKNIFTY Forecast Dashboard</span>
-                <div style="display: inline-flex; align-items: center; gap: 0.65rem;">
-                    <span class="status-badge"><span class="status-dot"></span> Live Model Feed</span>
-                    <button id="refresh-data-btn" class="refresh-feed-btn" title="Sync & Refresh Live Data Feed" aria-label="Refresh Data">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-1.19"/>
-                        </svg>
-                        <span>Sync</span>
-                    </button>
-                </div>
-            </h2>
-
-            <!-- Controls: Symbol & Interval Tabs -->
-            <div class="controls-bar">
-                <div class="tabs-group">
-                    <button class="tab-btn symbol-tab active" data-symbol="BANKNIFTY">BANKNIFTY</button>
-                    <button class="tab-btn symbol-tab" data-symbol="NIFTY">NIFTY 50</button>
-                    <button class="tab-btn symbol-tab" data-symbol="FINNIFTY">FINNIFTY</button>
-                </div>
-                <div class="tabs-group">
-                    <button class="tab-btn interval-tab active" data-interval="15m">15min</button>
-                    <button class="tab-btn interval-tab" data-interval="1h">1hr</button>
-                    <button class="tab-btn interval-tab" data-interval="1d">Daily</button>
-                </div>
-            </div>
-
-            <!-- Metadata Banner -->
-            <div class="metadata" style="margin-bottom: 1.5rem;">
-                <span>Exchange: <strong id="data-exchange-text">NSE (National Stock Exchange of India)</strong></span>
-                <span>Interval: <strong id="data-interval-text">15-Minute</strong></span>
-                <span>Spot Close: <strong id="data-spot-price"
-                        style="color: var(--accent-cyan); font-weight: 600;">₹55,055.55</strong></span>
-                <span>Updated: <strong id="update-time">--</strong></span>
-                <span>Model: <strong>Kronos-small (BSQ)</strong></span>
-            </div>
-
-            <!-- Metrics Grid -->
-            <div class="metrics-container fade-in-stagger">
-                <div class="metric-card">
-                    <h3>Upside Probability</h3>
-                    <p class="metric-value green" id="upside-prob">--%</p>
-                    <div class="metric-desc">Probability that forecast price exceeds last known spot close.</div>
-                </div>
-                <div class="metric-card">
-                    <h3>Volatility Amplification</h3>
-                    <p class="metric-value orange" id="vol-amp-prob">--%</p>
-                    <div class="metric-desc">Probability of forecast volatility exceeding historical rolling vol.
-                    </div>
-                </div>
-                <div class="metric-card">
-                    <h3>Expected Return (μ)</h3>
-                    <p class="metric-value green" id="exp-return">--%</p>
-                    <div class="metric-desc">Expected % price change across the mean Monte Carlo trajectory.</div>
-                </div>
-                <div class="metric-card">
-                    <h3>Value at Risk (95%)</h3>
-                    <p class="metric-value blue" id="var-95">--%</p>
-                    <div class="metric-desc">Maximum expected drawdown at 95% statistical confidence.</div>
-                </div>
-            </div>
-
-            <!-- Chart Wrapper -->
-            <div class="chart-wrapper">
-                <div class="chart-header">
-                    <h3>Probabilistic Forecast &amp; Uncertainty Fan</h3>
-                    <div class="chart-toggles">
-                        <button class="view-btn active" data-view="interactive">Interactive</button>
-                        <button class="view-btn" data-view="static">Static</button>
-                    </div>
-                </div>
-                <p class="chart-desc">
-                    Historical market prices alongside Kronos probabilistic forecasts. The orange line represents the
-                    median of <strong>50 Monte Carlo trajectory simulations</strong>,
-                    surrounded by <strong>50% and 90% confidence bands</strong> capturing market regime uncertainty.
-                </p>
-                <div class="chart-container">
-                    <div id="interactive-wrapper" class="interactive-canvas-wrapper">
-                        <canvas id="forecast-chart"></canvas>
-                    </div>
-                    <div id="static-wrapper" style="display: none;">
-                        <img src="img/prediction_chart.png" alt="Probabilistic Price and Volume Forecast Chart"
-                            class="chart-img">
-                    </div>
-                </div>
-                <p
-                    style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.75rem; text-align: center; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.02em;">
-                    🕒 <em>All bars conform to NSE Indian market trading hours (09:15 – 15:30 IST, Mon–Fri),
-                        excluding overnight &amp; weekend gaps.</em>
-                </p>
-            </div>
-
-            <!-- Next Horizon Forecast Table -->
-            <div class="table-wrapper">
-                <h3>Next Horizon Forecast K-Lines (OHLC & Bounds)</h3>
-                <table class="predictions-table">
-                    <thead>
-                        <tr>
-                            <th>Step / Horizon</th>
-                            <th>Open</th>
-                            <th>High</th>
-                            <th>Low</th>
-                            <th>Close (Mean)</th>
-                            <th>Expected Return</th>
-                            <th>90% Confidence Interval</th>
-                        </tr>
-                    </thead>
-                    <tbody id="predictions-tbody">
-                        <!-- Populated by app.js -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Section 2: Methodology -->
-        <section id="methodology" class="fade-in">
-            <h2>Methodology</h2>
-            <p>
-                This demo showcases the predictive capability of <strong>AlgoGPT</strong>, a foundation model
-                architecture adapted for the microstructure and dynamics of Indian equity index derivatives (NIFTY &amp;
-                BANKNIFTY). The forecasting pipeline operates through four modular stages:
-            </p>
-            <div class="methodology-grid fade-in-stagger">
-                <div class="method-card">
-                    <h4><span>⚡</span> 1. K-Line Tokenization</h4>
-                    <p>Continuous candlestick bars (Open, High, Low, Close, Volume, Amount) are quantized using
-                        <strong>Binary Spherical Quantization (BSQ)</strong> into hierarchical coarse and fine
-                        subtokens, preserving geometric candlestick formations.
-                    </p>
-                </div>
-                <div class="method-card">
-                    <h4><span>🧠</span> 2. Autoregressive Backbone</h4>
-                    <p>The <strong>Kronos Causal Transformer</strong> (4M parameters) processes up to 512 historical
-                        context bars, attending across temporal market patterns to forecast subsequent discrete codebook
-                        tokens.</p>
-                </div>
-                <div class="method-card">
-                    <h4><span>🎲</span> 3. Monte Carlo Sampling</h4>
-                    <p>Rather than generating a fragile single-point prediction, the model performs stochastic
-                        autoregressive sampling (<em>N</em> = 30 simulation paths) to map the full posterior
-                        distribution and
-                        uncertainty cone.</p>
-                </div>
-                <div class="method-card">
-                    <h4><span>📈</span> 4. Alpha Synthesis</h4>
-                    <p>Derived forecast trajectories are synthesized into actionable quantitative trading signals,
-                        integrated with dynamic stop-loss, position sizing, and Indian Options/Futures execution rules.
-                    </p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Section 3: About the Project -->
-        <section id="about-project" class="fade-in">
-            <h2>About</h2>
-            <p>
-                AlgoGPT is an open-source initiative designed to bridge foundational time-series language models with
-                systematic trading in the Indian equity derivatives ecosystem. Built on PyTorch and modern Hugging Face
-                infrastructure, it supports end-to-end data ingestion, tokenizer fine-tuning, autoregressive inference,
-                and walk-forward backtesting.
-            </p>
-            <div class="project-links">
-                <a href="https://github.com/NoobMaster1999/AlgoGPT" class="btn btn-primary" target="_blank"
-                    rel="noopener noreferrer">View
-                    on GitHub</a>
-                <a href="https://huggingface.co/NeoQuasar/Kronos-small" class="btn btn-secondary" target="_blank"
-                    rel="noopener noreferrer">Kronos on HF</a>
-                <a href="https://arxiv.org/abs/2508.02739" class="btn btn-secondary" target="_blank"
-                    rel="noopener noreferrer">Research
-                    Paper</a>
-            </div>
-        </section>
-    </main>
-
-    <footer>
-        <div class="container">
-            <p>&copy; 2026 AlgoGPT Project. Licensed under the MIT License.</p>
-            <p class="disclaimer">
-                Disclaimer: Financial time-series forecasts are inherently probabilistic and for research/educational
-                purposes only. Not financial advice. Past performance and foundation model simulations do not guarantee
-                future returns.
-            </p>
-        </div>
-    </footer>
-
-    <script src="app.js"></script>
-</body>
-
-</html>
+    <section class="panel" aria-labelledby="current-symbol-title">
+      <div class="section-heading"><div><p class="eyebrow" id="edition">Published forecast</p><h2 id="current-symbol-title">Loading forecast…</h2></div><span class="status" id="freshness" role="status">Loading</span></div>
+      <p id="detail-message" role="status"></p>
+      <div id="forecast-content" hidden>
+        <dl class="meta">
+          <div><dt>Last observation</dt><dd id="observed"></dd></div><div><dt>Forecast issued</dt><dd id="issued"></dd></div><div><dt>Target close</dt><dd id="target"></dd></div><div><dt>Expected update</dt><dd id="next"></dd></div>
+        </dl>
+        <div class="chart-heading"><div><h3>Forecast range</h3><p id="chart-desc"></p></div><div class="switches" role="group" aria-label="Chart view"><button class="view-btn" data-view="interactive">Interactive</button><button class="view-btn" data-view="static">Static</button></div></div>
+        <div class="legend" id="chart-legend"></div><label id="sample-toggle" hidden><input type="checkbox" id="show-samples"> Show example model paths</label><div id="chart-surface"></div><p id="chart-readout"></p>
+        <p id="outcome-summary"></p>
+        <div class="actions"><a id="permalink" hidden>Permanent forecast link</a><a id="previous" hidden>Review last completed forecast</a><a id="latest" hidden>Back to latest forecast</a></div>
+        <dl class="metrics" id="metrics"></dl>
+        <details><summary>Forecast bars and price ranges</summary><div class="scroll-table" tabindex="0" aria-label="Forecast bars"><table><thead><tr><th>Target bar (IST)</th><th>Open</th><th>High</th><th>Low</th><th>Median close</th><th>Change from spot</th><th id="outer-heading">Outer band</th><th>Actual close</th></tr></thead><tbody id="predictions-tbody"></tbody></table></div></details>
+      </div>
+    </section>
+    <section id="track-record" class="panel" aria-labelledby="track-title">
+      <div class="section-heading"><div><p class="eyebrow">Forecast evaluation</p><h2 id="track-title">Track record</h2></div><span id="score-context"></span></div>
+      <p id="score-message" role="status"></p><dl class="metrics score" id="score-metrics"></dl>
+      <h3>Past forecasts</h3><p id="archive-message"></p>
+      <div class="scroll-table" id="archive-table" tabindex="0" aria-label="Past forecasts" hidden><table><thead><tr><th>Forecast</th><th>Target close (IST)</th><th>Outcome</th><th>Actual close</th><th>Model error (pts)</th></tr></thead><tbody id="archive-body"></tbody></table></div>
+      <button id="show-more" type="button" hidden>Show more forecasts</button><details id="pilot-panel"><summary>Research pilot</summary><div id="pilot-controls"></div></details>
+    </section>
+    <section id="methodology" class="panel"><h2>Methodology</h2><p>Kronos samples possible price paths from historical index bars. The median is the central forecast. Shaded bands show the spread of simulated closes at each step. All times use India Standard Time.</p><p>The scorecard compares each eligible forecast’s final median against the observed close at its target. The baseline carries the last observed price forward. Lower mean absolute error is better. Coverage measures how often an observed close fell inside the published band.</p>
+    <div class="actions"><a href="https://github.com/NoobMaster1999/AlgoGPT">Project on GitHub</a><a href="https://huggingface.co/NeoQuasar/Kronos-small">Model weights</a><a href="https://arxiv.org/abs/2508.02739">Research paper</a></div></section>
+  </main><footer class="shell">AlgoGPT · Open-source market research · Forecasts are for research purposes.</footer>
+</body></html>

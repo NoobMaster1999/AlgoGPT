@@ -1,732 +1,431 @@
-/**
- * AlgoGPT Live Forecast Demo - Interactive Client
- * Fathomless-Inspired Redesign with Immersive Particle System
- * Supports dynamic symbol and interval switching (15m, 1h, 1d)
- */
+'use strict';
 
-let forecastData = null;
-let currentSymbol = 'BANKNIFTY';
-let currentInterval = '15m';
-let chartInstance = null;
-let viewMode = 'interactive'; // 'interactive' or 'static'
+const el = id => document.getElementById(id);
+const symbols = ['NIFTY', 'BANKNIFTY', 'FINNIFTY'];
+const intervals = {'15m': '15 minutes', '1h': '1 hour', '1d': 'Daily'};
+const price = new Intl.NumberFormat('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const dateFormat = new Intl.DateTimeFormat('en-GB', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
+const numeric = Number.isFinite;
+const number = v => numeric(v) ? price.format(v) : '—';
+const percent = v => numeric(v) ? Number(v.toFixed(2)) + '%' : '—';
+let latestData = null;
+let scorecard = null;
+let activeData = null;
+let symbol = 'NIFTY';
+let interval = '15m';
+let archiveId = '';
+let view = 'interactive';
+let generation = 0;
+let pageSize = 12;
+let lastReview = '';
+let refreshPending = false;
+let lastRefreshAt = 0;
+let inspectedForecast = '';
+let inspectedTime = '';
+const pollInterval = 5 * 60 * 1000;
 
-document.addEventListener('DOMContentLoaded', async () => {
-  initTheme();
-  initParticles();
-  initScrollAnimations();
-  initDepthMeter();
-  initNavbar();
-  setupEventListeners();
-  await loadForecastData();
-
-  // URL parameters support for direct linking & testing
-  const urlParams = new URLSearchParams(window.location.search);
-  const symParam = urlParams.get('symbol');
-  if (symParam && forecastData && forecastData[symParam]) {
-    currentSymbol = symParam;
-    document.querySelectorAll('.symbol-tab').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-symbol') === symParam);
-    });
-  }
-  const intvParam = urlParams.get('interval');
-  if (intvParam) {
-    currentInterval = intvParam;
-    document.querySelectorAll('.interval-tab').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-interval') === intvParam);
-    });
-  }
-  const viewParam = urlParams.get('view');
-  if (viewParam === 'static') {
-    viewMode = 'static';
-    document.querySelectorAll('.view-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-view') === 'static');
-    });
-    const interactiveWrapper = document.getElementById('interactive-wrapper');
-    const staticWrapper = document.getElementById('static-wrapper');
-    if (interactiveWrapper) interactiveWrapper.style.display = 'none';
-    if (staticWrapper) staticWrapper.style.display = 'block';
-  }
-
-  renderDashboard();
-});
-
-/* ==========================================================================
-   PARTICLE SYSTEM – Floating Marine Snow / Bioluminescence
-   ========================================================================== */
-function initParticles() {
-  const canvas = document.getElementById('particle-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-
-  let particles = [];
-  let mouse = { x: -1000, y: -1000 };
-  let animId;
-  const PARTICLE_COUNT = 80;
-  const MAX_DEPTH_PARTICLE_SIZE = 3;
-
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  resize();
-  window.addEventListener('resize', resize);
-
-  document.addEventListener('mousemove', (e) => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
-  });
-
-  // Create particles
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    particles.push(createParticle());
-  }
-
-  function createParticle() {
-    const scrollFactor = window.scrollY / (document.body.scrollHeight - window.innerHeight || 1);
-    return {
-      x: Math.random() * (canvas.width || window.innerWidth),
-      y: Math.random() * (canvas.height || window.innerHeight),
-      size: Math.random() * MAX_DEPTH_PARTICLE_SIZE + 0.5,
-      speedX: (Math.random() - 0.5) * 0.3,
-      speedY: Math.random() * 0.15 + 0.05, // gentle drift downward (marine snow)
-      opacity: Math.random() * 0.5 + 0.1,
-      hue: Math.random() > 0.7 ? 180 + Math.random() * 40 : 170 + Math.random() * 20, // cyan-teal range
-      pulseSpeed: Math.random() * 0.02 + 0.005,
-      pulsePhase: Math.random() * Math.PI * 2,
-      bioluminescent: Math.random() > 0.85 // ~15% of particles glow
-    };
-  }
-
-  function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const scrollProgress = window.scrollY / (document.body.scrollHeight - window.innerHeight || 1);
-    // Deepen ambient as user scrolls
-    const ambientAlpha = 0.02 + scrollProgress * 0.03;
-
-    particles.forEach(p => {
-      // Update position
-      p.x += p.speedX;
-      p.y += p.speedY;
-
-      // Mouse proximity interaction
-      const dx = mouse.x - p.x;
-      const dy = mouse.y - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 150) {
-        const force = (150 - dist) / 150;
-        p.x -= dx * force * 0.008;
-        p.y -= dy * force * 0.008;
-      }
-
-      // Wrap around
-      if (p.y > canvas.height + 10) { p.y = -10; p.x = Math.random() * canvas.width; }
-      if (p.x > canvas.width + 10) p.x = -10;
-      if (p.x < -10) p.x = canvas.width + 10;
-
-      // Pulsing opacity for bioluminescence
-      let drawOpacity = p.opacity;
-      if (p.bioluminescent) {
-        const pulse = Math.sin(Date.now() * p.pulseSpeed + p.pulsePhase) * 0.5 + 0.5;
-        drawOpacity = p.opacity + pulse * 0.4;
-      }
-
-      // Draw particle with theme awareness
-      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = isLight 
-        ? `hsla(${p.hue}, 70%, 40%, ${drawOpacity * 0.75})` 
-        : `hsla(${p.hue}, 60%, 75%, ${drawOpacity})`;
-      ctx.fill();
-
-      // Glow effect for bioluminescent particles
-      if (p.bioluminescent && drawOpacity > 0.3) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * 4, 0, Math.PI * 2);
-        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
-        if (isLight) {
-          gradient.addColorStop(0, `hsla(${p.hue}, 80%, 45%, ${drawOpacity * 0.25})`);
-          gradient.addColorStop(1, `hsla(${p.hue}, 80%, 45%, 0)`);
-        } else {
-          gradient.addColorStop(0, `hsla(${p.hue}, 70%, 70%, ${drawOpacity * 0.15})`);
-          gradient.addColorStop(1, `hsla(${p.hue}, 70%, 70%, 0)`);
-        }
-        ctx.fillStyle = gradient;
-        ctx.fill();
-      }
-    });
-
-    animId = requestAnimationFrame(animate);
-  }
-
-  animate();
+function asDate(value) {
+  if (typeof value !== 'string') return null;
+  let stamp = value;
+  const local = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?(?: IST(?: .*)?)?$/.exec(value);
+  if (local) stamp = local[1] + 'T' + (local[2] || '15:30') + ':00+05:30';
+  if (!local && !/(Z|[+-]\d{2}:\d{2})$/i.test(stamp)) return null;
+  const date = new Date(stamp);
+  return Number.isFinite(+date) ? date : null;
 }
-
-/* ==========================================================================
-   SCROLL FADE-IN ANIMATIONS
-   ========================================================================== */
-function initScrollAnimations() {
-  const elements = document.querySelectorAll('.fade-in, .fade-in-stagger');
-  
-  // Instantly activate any element currently in or near viewport
-  elements.forEach(el => {
-    const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight * 1.1) {
-      el.classList.add('visible');
-    }
-  });
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-      }
-    });
-  }, { threshold: 0.05, rootMargin: '0px 0px -20px 0px' });
-
-  elements.forEach(el => {
-    observer.observe(el);
-  });
+function dateText(value, fallback = 'Unavailable') {
+  const date = asDate(value);
+  return date ? dateFormat.format(date) + ' IST' : fallback;
 }
-
-/* ==========================================================================
-   DEPTH METER & TELEMETRY – Scroll Progress & Oceanic Zones
-   ========================================================================== */
-function initDepthMeter() {
-  const indicator = document.getElementById('depth-indicator');
-  const counter = document.getElementById('depth-counter');
-  const zoneEl = document.getElementById('depth-zone');
-  const hudZoneText = document.getElementById('hud-zone-text');
-  if (!indicator && !counter) return;
-
-  function update() {
-    const scrollHeight = document.body.scrollHeight - window.innerHeight;
-    const progress = scrollHeight > 0 ? (window.scrollY / scrollHeight) : 0;
-    const percent = Math.min(Math.max(progress * 100, 0), 100);
-
-    if (indicator) {
-      indicator.style.height = `${percent}%`;
-    }
-
-    // Depth descending down to -4,500m (Abyssal zone)
-    const currentDepth = Math.round(progress * 4500);
-    if (counter) {
-      counter.textContent = `-${currentDepth.toLocaleString()}m`;
-    }
-
-    // Dynamic ocean zone based on descent depth
-    let zone = 'EPIPELAGIC';
-    let hudText = 'SURFACE • LIVE MODEL';
-
-    if (currentDepth > 3500) {
-      zone = 'ABYSSOPELAGIC';
-      hudText = 'ABYSS • CORE ENGINE';
-    } else if (currentDepth > 1800) {
-      zone = 'BATHYPELAGIC';
-      hudText = 'MIDNIGHT • METHODOLOGY';
-    } else if (currentDepth > 400) {
-      zone = 'MESOPELAGIC';
-      hudText = 'TWILIGHT • FORECAST CONE';
-    }
-
-    if (zoneEl) zoneEl.textContent = zone;
-    if (hudZoneText) hudZoneText.textContent = hudText;
-  }
-
-  window.addEventListener('scroll', update, { passive: true });
-  update();
+function setText(id, value) { el(id).textContent = value; }
+function route() {
+  const q = new URLSearchParams(location.search);
+  symbol = symbols.includes(q.get('symbol')) ? q.get('symbol') : 'NIFTY';
+  interval = Object.hasOwn(intervals, q.get('interval')) ? q.get('interval') : '15m';
+  archiveId = q.get('forecast') || '';
+  view = q.get('view') === 'static' ? 'static' : 'interactive';
 }
-
-/* ==========================================================================
-   FIXED NAVBAR – Scroll-aware opacity, Mobile Drawer & Scroll Spy
-   ========================================================================== */
-function initNavbar() {
-  const nav = document.getElementById('main-nav');
-  const sections = document.querySelectorAll('section[id], header');
-  const navLinks = document.querySelectorAll('.nav-link');
-  const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-  const navLinksContainer = document.getElementById('nav-links');
-
-  // Mobile drawer toggle
-  if (mobileMenuBtn && navLinksContainer) {
-    mobileMenuBtn.addEventListener('click', () => {
-      const isOpen = navLinksContainer.classList.toggle('open');
-      mobileMenuBtn.classList.toggle('active', isOpen);
-      mobileMenuBtn.setAttribute('aria-expanded', isOpen);
-    });
-
-    // Auto-close drawer on link click
-    navLinks.forEach(link => {
-      link.addEventListener('click', () => {
-        navLinksContainer.classList.remove('open');
-        mobileMenuBtn.classList.remove('active');
-        mobileMenuBtn.setAttribute('aria-expanded', 'false');
-      });
-    });
-  }
-
-  // Scroll listener for sticky navbar & scroll-spy
-  window.addEventListener('scroll', () => {
-    if (nav) {
-      if (window.scrollY > 60) {
-        nav.classList.add('scrolled');
-      } else {
-        nav.classList.remove('scrolled');
-      }
-    }
-
-    // Scroll spy: activate the corresponding nav item
-    const scrollPos = window.scrollY + 140;
-    let currentId = '';
-
-    sections.forEach(sec => {
-      const top = sec.offsetTop;
-      const height = sec.offsetHeight;
-      if (scrollPos >= top && scrollPos < top + height) {
-        currentId = sec.getAttribute('id');
-      }
-    });
-
-    if (currentId) {
-      navLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        if (href === `#${currentId}`) {
-          link.classList.add('active');
-        } else {
-          link.classList.remove('active');
-        }
-      });
-    }
-  }, { passive: true });
+function link(id = '', nextSymbol = symbol, nextInterval = interval, nextView = view) {
+  const url = new URL(location.href);
+  url.searchParams.set('symbol', nextSymbol);
+  url.searchParams.set('interval', nextInterval);
+  if (id) url.searchParams.set('forecast', id); else url.searchParams.delete('forecast');
+  if (nextView === 'static') url.searchParams.set('view', nextView); else url.searchParams.delete('view');
+  url.hash = 'live-dashboard';
+  return url;
 }
-
-function initTheme() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const themeParam = urlParams.get('theme');
-  // Default to dark (Fathomless deep-sea aesthetic)
-  const savedTheme = themeParam || localStorage.getItem('algogpt_theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', savedTheme);
-  updateThemeButton(savedTheme);
+function setLink(key, url) {
+  const a = el(key);
+  a.hidden = !url;
+  if (url) a.href = url; else a.removeAttribute('href');
 }
-
-function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'dark';
-  const next = current === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('algogpt_theme', next);
-  updateThemeButton(next);
-  
-  if (viewMode === 'interactive' && chartInstance) {
-    renderInteractiveChart();
-  } else if (viewMode === 'static') {
-    updateStaticChart();
-  }
+async function navigate(url) {
+  history.pushState(null, '', url);
+  route();
+  pageSize = 12;
+  await display();
 }
-
-function updateThemeButton(theme) {
-  const btn = document.getElementById('theme-toggle');
-  if (btn) {
-    const isMobile = window.innerWidth <= 480;
-    if (isMobile) {
-      btn.textContent = theme === 'dark' ? '◐ LIGHT' : '◑ DARK';
-      btn.title = theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme';
-    } else {
-      btn.textContent = theme === 'dark' ? '◐ LIGHT' : '◑ DARK';
-      btn.title = theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme';
-    }
-  }
-}
-
-function setupEventListeners() {
-  // Theme toggle
-  const themeBtn = document.getElementById('theme-toggle');
-  if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
-
-  // Symbol tabs
-  const symbolBtns = document.querySelectorAll('.symbol-tab');
-  symbolBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      symbolBtns.forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      currentSymbol = e.target.getAttribute('data-symbol');
-      renderDashboard();
-    });
-  });
-
-  // Interval / Timeframe tabs
-  const intervalBtns = document.querySelectorAll('.interval-tab');
-  intervalBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      intervalBtns.forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      currentInterval = e.target.getAttribute('data-interval');
-      renderDashboard();
-    });
-  });
-
-  // View toggle buttons (Interactive vs Static)
-  const viewBtns = document.querySelectorAll('.view-btn');
-  viewBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      viewBtns.forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      viewMode = e.target.getAttribute('data-view');
-      toggleChartView();
-    });
-  });
-
-  // Live Feed Refresh button
-  const refreshBtn = document.getElementById('refresh-data-btn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', async () => {
-      refreshBtn.classList.add('refreshing');
-      await loadForecastData();
-      renderDashboard();
-      setTimeout(() => {
-        refreshBtn.classList.remove('refreshing');
-      }, 500);
+function tabs() {
+  for (const [group, value] of [['symbol',symbol],['interval',interval],['view',view]]) {
+    document.querySelectorAll('button[data-' + group + ']').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset[group] === value));
     });
   }
 }
-
-async function loadForecastData() {
+async function readJson(path) {
+  const res = await fetch(path, {cache:'no-store'});
+  if (!res.ok) throw Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!json || typeof json !== 'object' || Array.isArray(json)) throw Error('Invalid document');
+  return json;
+}
+async function refresh({background = false} = {}) {
+  if (refreshPending) return;
+  refreshPending = true;
+  lastRefreshAt = Date.now();
+  if (!background) {
+    el('refresh-data-btn').disabled = true;
+    setText('feed-message','Refreshing published data…');
+  }
   try {
-    const res = await fetch(`data/forecast_data.json?t=${Date.now()}`);
-    if (!res.ok) throw new Error('Network error loading forecast data');
-    forecastData = await res.json();
-  } catch (err) {
-    console.error('Failed to load forecast data:', err);
+    const results = await Promise.allSettled([readJson('data/forecast_data.json'),readJson('data/scorecard.json')]);
+    const [feed, score] = results;
+    const messages = [];
+    const oldForecast = latestData?.[symbol]?.[interval];
+    const oldTrack = scorecard;
+    if (feed.status === 'fulfilled' && symbols.some(key => feed.value[key])) latestData = feed.value;
+    else messages.push(latestData ? 'Refresh failed. Showing the previously loaded forecast feed.' : 'Forecast feed unavailable. Use Refresh data to retry.');
+    if (score.status === 'fulfilled' && score.value.schema_version === 1 && score.value.outcomes && score.value.groups) scorecard = score.value;
+    else messages.push(scorecard ? 'Showing the previously loaded track record.' : 'Track record unavailable. Use Refresh data to retry.');
+    setText('feed-message',messages.join(' '));
+    if (background && activeData && (archiveId || JSON.stringify(oldForecast) === JSON.stringify(latestData?.[symbol]?.[interval])) &&
+        JSON.stringify(oldTrack?.outcomes) === JSON.stringify(scorecard?.outcomes) && JSON.stringify(oldTrack?.groups) === JSON.stringify(scorecard?.groups)) {
+      renderFreshness();
+      return;
+    }
+    await display();
+  } finally {
+    refreshPending = false;
+    el('refresh-data-btn').disabled = false;
   }
 }
-
-function getActiveData() {
-  if (!forecastData || !forecastData[currentSymbol]) return null;
-  const symData = forecastData[currentSymbol];
-  // Support both nested interval structure and fallback
-  if (symData[currentInterval]) {
-    return symData[currentInterval];
-  }
-  return symData['15m'] || symData;
+function usable(d) {
+  if (!d || !symbols.includes(d.symbol) || !Object.hasOwn(intervals, d.interval_key)) return false;
+  if (!Array.isArray(d.historical) || !d.historical.length || !Array.isArray(d.predictions) || !d.predictions.length) return false;
+  return d.historical.every(b => b && typeof b.time === 'string' && numeric(b.close)) &&
+    d.predictions.every(b => b && typeof b.time === 'string' && numeric(b.close) && numeric(b.upper_75) && numeric(b.lower_25)) &&
+    (d.predictions.every(b => numeric(b.upper_95) && numeric(b.lower_05)) ||
+      d.predictions.every(b => numeric(b.upper_90) && numeric(b.lower_10)));
 }
-
-function renderDashboard() {
-  const data = getActiveData();
-  if (!data) return;
-
-  // Update Header & Metadata
-  const titleEl = document.getElementById('current-symbol-title');
-  if (titleEl) {
-    titleEl.textContent = `${data.symbol} (${data.interval}) Forecast Dashboard`;
+function emptyView(title,message) {
+  activeData = null;
+  setText('current-symbol-title',title);
+  setText('detail-message',message);
+  setText('freshness','Unavailable');
+  el('freshness').dataset.state = '';
+  el('forecast-content').hidden = true;
+  el('chart-surface').replaceChildren();
+}
+function renderFreshness() {
+  if (!activeData) return;
+  const target = asDate(activeData.target_at || activeData.predictions.at(-1).time);
+  const due = asDate(activeData.next_update_at);
+  const issue = asDate(activeData.issued_at);
+  const now = Date.now();
+  let status = 'Timing unverified';
+  if (target && +target <= now) status = 'Historical';
+  else if (archiveId && target) status = 'Open horizon';
+  else if (issue && due && target && +issue <= now) status = +due <= now ? 'Update delayed' : 'Current';
+  setText('freshness',status);
+  el('freshness').dataset.state = status === 'Current' ? 'current' : status === 'Update delayed' ? 'delayed' : '';
+}
+function sortedEntries() {
+  return Object.entries(scorecard?.outcomes || {}).filter(([,o]) => o?.symbol === symbol && o.interval === interval)
+    .sort(([idA,a],[idB,b]) => (+(asDate(b.observed_at) || 0) - +(asDate(a.observed_at) || 0)) || idB.localeCompare(idA));
+}
+function stat(list, title, val, hint) {
+  const wrapper = document.createElement('div');
+  const term = document.createElement('dt');
+  const desc = document.createElement('dd');
+  term.textContent = title;
+  desc.textContent = val;
+  if (hint) {
+    const note = document.createElement('small');
+    note.textContent = hint;
+    desc.append(note);
   }
-
-  const timeEl = document.getElementById('update-time');
-  if (timeEl) timeEl.textContent = data.last_updated;
-
-  const intvEl = document.getElementById('data-interval-text');
-  if (intvEl) intvEl.textContent = data.interval;
-
-  const exchEl = document.getElementById('data-exchange-text');
-  if (exchEl) exchEl.textContent = data.exchange;
-
-  const spotEl = document.getElementById('data-spot-price');
-  if (spotEl && data.spot_close) {
-    spotEl.textContent = `₹${data.spot_close.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+  wrapper.append(term,desc);
+  list.append(wrapper);
+}
+function addRow(body,cells) {
+  const row = body.insertRow();
+  for (const item of cells) {
+    const cell = row.insertCell();
+    if (item instanceof Node) cell.append(item); else cell.textContent = item;
   }
-
-  // Update Metrics
-  const metrics = data.metrics;
-  const upsideEl = document.getElementById('upside-prob');
-  if (upsideEl) {
-    upsideEl.textContent = `${metrics.upside_prob}%`;
-    upsideEl.className = 'metric-value ' + (metrics.upside_prob >= 50 ? 'green' : 'orange');
+}
+function renderScores() {
+  const entries = sortedEntries();
+  const group = scorecard?.groups?.[symbol]?.[interval];
+  setText('score-context',symbol + ' · ' + intervals[interval]);
+  el('score-metrics').replaceChildren();
+  const score = el('score-metrics');
+  if (group) {
+    stat(score,'Kronos mean absolute error',number(group.model_mae),'Index points');
+    stat(score,'Last-close baseline error',number(group.baseline_mae),'Index points');
+    stat(score,'50% band coverage',percent(numeric(group.coverage_50) ? group.coverage_50 * 100 : null),(group.coverage_50_count ?? 0) + ' eligible forecasts');
+    stat(score,'90% band coverage',percent(numeric(group.coverage_90) ? group.coverage_90 * 100 : null),(group.coverage_90_count ?? 0) + ' eligible forecasts');
   }
-
-  const volEl = document.getElementById('vol-amp-prob');
-  if (volEl) {
-    volEl.textContent = `${metrics.vol_amp_prob}%`;
-    volEl.className = 'metric-value ' + (metrics.vol_amp_prob > 60 ? 'orange' : 'blue');
+  setText('score-message',group ? (group.completed_count ?? 0) + ' completed · ' + (group.pending_count ?? 0) + ' pending · ' + (group.excluded_count ?? 0) + ' excluded' : scorecard ? 'No evaluated forecasts for this selection yet.' : 'Scorecard unavailable.');
+  setText('archive-message',entries.length ? 'Showing ' + Math.min(entries.length,pageSize) + ' of ' + entries.length + ' archived forecasts.' : scorecard ? 'The first published forecast for this series will appear here.' : 'Archive index unavailable.');
+  const body = el('archive-body');
+  body.replaceChildren();
+  el('archive-table').hidden = !entries.length;
+  el('show-more').hidden = entries.length <= pageSize;
+  for (const [id,o] of entries.slice(0,pageSize)) {
+    const a = document.createElement('a');
+    a.href = link(id);
+    a.textContent = dateText(o.issued_at || o.observed_at,id);
+    addRow(body,[a,dateText(o.target_at),o.status,number(o.actual_close),number(o.model_abs_error)]);
   }
-
-  const expReturnEl = document.getElementById('exp-return');
-  if (expReturnEl) {
-    const retPrefix = metrics.expected_return >= 0 ? '+' : '';
-    expReturnEl.textContent = `${retPrefix}${metrics.expected_return}%`;
-    expReturnEl.className = 'metric-value ' + (metrics.expected_return >= 0 ? 'green' : 'orange');
-  }
-
-  const varEl = document.getElementById('var-95');
-  if (varEl) {
-    varEl.textContent = `${metrics.var_95}%`;
-    varEl.className = 'metric-value ' + (Math.abs(metrics.var_95) > 1.5 ? 'purple' : 'blue');
-  }
-
-  // Update Chart Description with Horizon Description
-  const chartDescEl = document.querySelector('.chart-desc');
-  if (chartDescEl && data.horizon_desc) {
-    chartDescEl.innerHTML = `The chart below visualizes <strong>${data.symbol}</strong> historical prices alongside Kronos probabilistic forecasts for the <strong>${data.horizon_desc}</strong>. The orange line represents the median of <strong>50 Monte Carlo trajectory simulations</strong>, surrounded by <strong>50% and 90% confidence bands</strong> capturing market regime uncertainty.`;
-  }
-
-  // Render Predictions Table
-  renderTable(data);
-
-  // Render Chart
-  if (viewMode === 'interactive') {
-    renderInteractiveChart();
+}
+async function display() {
+  const ticket = ++generation;
+  tabs();
+  renderScores();
+  let d;
+  if (archiveId) {
+    const id = archiveId;
+    const cached = activeData?.forecast_id === id ? activeData : null;
+    if (!cached) emptyView('Opening archived forecast…','');
+    setText('edition','Forecast archive');
+    const returnLink = document.createElement('a');
+    returnLink.href = link('');
+    returnLink.textContent = 'Back to latest forecast';
+    try {
+      if (!/^[A-Za-z0-9_-]{1,120}$/.test(id)) throw Error('Invalid ID');
+      d = cached || await readJson('data/archive/' + encodeURIComponent(id) + '.json');
+      if (!usable(d) || d.forecast_id !== id) throw Error('Invalid archive');
+    } catch {
+      if (ticket !== generation) return;
+      emptyView('Archived forecast unavailable','Check the link or retry with Refresh data. ');
+      el('detail-message').append(returnLink);
+      return;
+    }
+    if (ticket !== generation) return;
+    symbol = d.symbol;
+    interval = d.interval_key;
+    tabs();
+    renderScores();
   } else {
-    updateStaticChart();
+    lastReview = '';
+    d = latestData?.[symbol]?.[interval];
+    setText('edition','Latest published forecast');
+    if (!usable(d) || d.symbol !== symbol || d.interval_key !== interval) {
+      emptyView(symbol + ' · ' + intervals[interval],'No usable forecast is available for this selection.');
+      return;
+    }
+  }
+  activeData = d;
+  setText('detail-message','');
+  el('forecast-content').hidden = false;
+  setText('current-symbol-title',(symbol === 'NIFTY' ? 'NIFTY 50' : symbol) + ' · ' + intervals[interval]);
+  setText('observed',dateText(d.observed_at || d.last_updated));
+  setText('issued',dateText(d.issued_at,'Unrecorded'));
+  setText('target',dateText(d.target_at || d.predictions.at(-1).time));
+  setText('next',archiveId ? 'Archived edition' : dateText(d.next_update_at,'Unscheduled'));
+  renderFreshness();
+  const outcome = scorecard?.outcomes?.[d.forecast_id];
+  setLink('permalink',d.forecast_id ? link(d.forecast_id) : '');
+  setLink('latest',archiveId ? link('') : '');
+  const prior = sortedEntries().find(([id,o]) => (!archiveId || id !== archiveId) && o.status === 'completed');
+  setLink('previous',prior ? link(prior[0]) : '');
+  setText('outcome-summary', outcome ? (outcome.status === 'completed' ? 'Observed target close ' + number(outcome.actual_close) + ' · Model error ' + number(outcome.model_abs_error) + ' points · Last-close baseline error ' + number(outcome.baseline_abs_error) + ' points.' : outcome.status + (outcome.reason ? ' · ' + outcome.reason : '')) : '');
+  const metrics = el('metrics');
+  metrics.replaceChildren();
+  const m = d.metrics || {};
+  stat(metrics,'Upside probability',percent(m.upside_prob),'Paths ending above spot');
+  stat(metrics,'Volatility amplification',percent(m.vol_amp_prob),'Paths above historical volatility');
+  stat(metrics,'Expected return',percent(m.expected_return),'Mean across simulated terminal returns');
+  stat(metrics,'5th percentile return',percent(m.var_95),'Lower tail of terminal returns');
+  const bands = bandFields(d);
+  setText('outer-heading',bands.label);
+  setText('chart-desc','Last close ' + number(d.spot_close) + ' points · ' + d.predictions.length + ' forecast bars' + (numeric(d.sample_count) ? ' · ' + d.sample_count + ' simulations' : '') + (d.source ? ' · ' + d.source : ''));
+  const tbody = el('predictions-tbody');
+  tbody.replaceChildren();
+  for (const [index,b] of d.predictions.entries()) {
+    const change = numeric(d.spot_close) && d.spot_close > 0 ? (b.close / d.spot_close - 1) * 100 : null;
+    addRow(tbody,[b.time,number(b.open),number(b.high),number(b.low),number(b.close),percent(change),number(b[bands.low]) + ' – ' + number(b[bands.high]),index === d.predictions.length-1 ? number(outcome?.actual_close) : '—']);
+  }
+  drawChart(d,outcome,bands);
+  if (archiveId && outcome?.status === 'completed' && lastReview !== archiveId) {
+    lastReview = archiveId;
+    window.dispatchEvent(new CustomEvent('algogpt:outcome-reviewed',{detail:{id:archiveId,status:'completed'}}));
   }
 }
-
-function updateStaticChart() {
-  const chartImg = document.querySelector('.chart-img');
-  if (chartImg) {
-    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    const prefix = isLight ? 'prediction_chart_light' : 'prediction_chart';
-    chartImg.src = `img/${prefix}_${currentSymbol}_${currentInterval}.png?t=${Date.now()}`;
-    chartImg.onerror = () => {
-      chartImg.src = `img/${prefix}_${currentInterval}.png?t=${Date.now()}`;
-      chartImg.onerror = () => {
-        chartImg.src = `img/${prefix}.png?t=${Date.now()}`;
-      };
-    };
-  }
+function bandFields(d) {
+  if (d.predictions.every(b => numeric(b.lower_05) && numeric(b.upper_95))) return {low:'lower_05',high:'upper_95',label:'90% band'};
+  return {low:'lower_10',high:'upper_90',label:'Legacy outer bounds'};
 }
-
-function toggleChartView() {
-  const interactiveWrapper = document.getElementById('interactive-wrapper');
-  const staticWrapper = document.getElementById('static-wrapper');
-
-  if (viewMode === 'interactive') {
-    if (interactiveWrapper) interactiveWrapper.style.display = 'block';
-    if (staticWrapper) staticWrapper.style.display = 'none';
-    renderInteractiveChart();
-  } else {
-    if (interactiveWrapper) interactiveWrapper.style.display = 'none';
-    if (staticWrapper) staticWrapper.style.display = 'block';
-    updateStaticChart();
-  }
+function svgNode(tag,attrs,content) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg',tag);
+  for (const [k,v] of Object.entries(attrs)) node.setAttribute(k,String(v));
+  if (content !== undefined) node.textContent = content;
+  return node;
 }
-
-function renderTable(data) {
-  const tbody = document.getElementById('predictions-tbody');
-  if (!tbody || !data.predictions) return;
-  tbody.innerHTML = '';
-
-  const lastClose = data.historical[data.historical.length - 1].close;
-
-  data.predictions.forEach((p, idx) => {
-    const tr = document.createElement('tr');
-    const delta = ((p.close - lastClose) / lastClose) * 100;
-    const deltaClass = delta >= 0 ? 'positive' : 'negative';
-    const deltaStr = (delta >= 0 ? '+' : '') + delta.toFixed(2) + '%';
-
-    tr.innerHTML = `
-      <td>Step +${idx + 1} (${p.time})</td>
-      <td class="price-cell">₹${p.open.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-      <td class="price-cell">₹${p.high.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-      <td class="price-cell">₹${p.low.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-      <td class="price-cell">₹${p.close.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-      <td class="${deltaClass} price-cell">${deltaStr}</td>
-      <td style="color: var(--text-muted)">₹${p.lower_10.toLocaleString('en-IN', {minimumFractionDigits: 2})} — ₹${p.upper_90.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-    `;
-    tbody.appendChild(tr);
+function drawChart(d,outcome,band) {
+  const surface = el('chart-surface');
+  const refocus = surface.contains(document.activeElement);
+  const legend = el('chart-legend');
+  surface.replaceChildren();
+  legend.replaceChildren();
+  const observed = numeric(outcome?.actual_close) ? outcome.actual_close : null;
+  for (const [style,label] of [['','Historical close'],['central','Forecast median'],['band','50% band / ' + band.label],['actual','Observed target close']]) {
+    if (style === 'actual' && observed === null) continue;
+    const item = document.createElement('span');
+    const swatch = document.createElement('i');
+    swatch.className = style;
+    item.append(swatch,document.createTextNode(label));
+    legend.append(item);
+  }
+  const width = Math.round(Math.max(280,Math.min(surface.clientWidth || 900,1100)));
+  const height = width < 500 ? 220 : 295;
+  const left = width < 500 ? 57 : 80;
+  const right = width - 14;
+  const top = 20;
+  const bottom = height - 36;
+  const history = d.historical.slice(-25);
+  const bars = history.concat(d.predictions);
+  const start = history.length - 1;
+  const anchor = history.at(-1).close;
+  const values = history.map(b => b.close).concat(d.predictions.flatMap(b => [b[band.low],b[band.high],b.lower_25,b.upper_75,b.close]));
+  const hasSamples = d.predictions.every(b => Array.isArray(b.samples) && b.samples.length >= 3 && b.samples.slice(0,3).every(numeric));
+  el('sample-toggle').hidden = !hasSamples;
+  const showSamples = hasSamples && el('show-samples').checked;
+  if (showSamples) values.push(...d.predictions.flatMap(b => b.samples.slice(0,3)));
+  if (observed !== null) values.push(observed);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = Math.max((max-min)*.12,Math.abs(min)*.00005,.01);
+  const low = min-pad;
+  const high = max+pad;
+  const x = i => left + (right-left)*i/(bars.length-1);
+  const y = v => top + (high-v)/(high-low)*(bottom-top);
+  const svg = svgNode('svg',{viewBox:'0 0 ' + width + ' ' + height,role:'img','aria-label':'Historical and forecast index closes. Exact values appear in the forecast table.'});
+  const add = (tag,props,content) => { const n = svgNode(tag,props,content); svg.append(n); return n; };
+  const label = (xPos,yPos,copy,anchor) => add('text',{x:xPos,y:yPos,fill:'var(--secondary)','font-size':12,'text-anchor':anchor},copy);
+  for (let n=0; n<5; n++) {
+    const v = low + n/4*(high-low);
+    add('line',{x1:left,x2:right,y1:y(v),y2:y(v),stroke:'var(--grid)','stroke-width':1});
+    label(left-5,y(v)+4,Math.round(v).toLocaleString('en-IN'),'end');
+  }
+  const forecastPoints = key => [anchor,...d.predictions.map(b=>b[key])].map((v,i)=>x(start+i)+','+y(v));
+  function area(lower,upper,opacity) {
+    add('polygon',{points:[...forecastPoints(upper),...forecastPoints(lower).reverse()].join(' '),fill:'var(--band)',opacity});
+  }
+  area(band.low,band.high,.20);
+  area('lower_25','upper_75',.42);
+  if (showSamples) {
+    for (let i=0;i<3;i++) {
+      const path = [anchor,...d.predictions.map(b => b.samples[i])];
+      add('polyline',{points:path.map((v,j) => x(start+j)+','+y(v)).join(' '),fill:'none',stroke:'var(--forecast)',opacity:.55,'stroke-dasharray':'3 4'});
+    }
+  }
+  add('polyline',{points:history.map((b,i)=>x(i)+','+y(b.close)).join(' '),fill:'none',stroke:'var(--history)','stroke-width':2.4});
+  add('polyline',{points:forecastPoints('close').join(' '),fill:'none',stroke:'var(--forecast)','stroke-width':2.4});
+  add('line',{x1:x(start),x2:x(start),y1:top,y2:bottom,stroke:'var(--secondary)','stroke-dasharray':'4 4'});
+  if (observed !== null) add('circle',{cx:right,cy:y(observed),r:4.5,fill:'var(--actual)',stroke:'var(--inset)','stroke-width':1.5});
+  label(left,bottom+24,bars[0].time.slice(0,10),'start');
+  label(right,bottom+24,bars.at(-1).time.slice(0,10),'end');
+  surface.append(svg);
+  const readout = el('chart-readout');
+  if (view === 'static') {
+    readout.textContent = 'Static view · Index points';
+    return;
+  }
+  const forecastKey = d.forecast_id || [d.symbol,d.interval_key,d.last_updated].join('/');
+  let index = start;
+  const cursor = add('line',{x1:x(start),x2:x(start),y1:top,y2:bottom,stroke:'var(--accent)','stroke-width':1});
+  const marker = add('circle',{r:4,fill:'var(--accent)'});
+  function select(i) {
+    index = Math.max(0,Math.min(i,bars.length-1));
+    const b = bars[index];
+    inspectedForecast = forecastKey;
+    inspectedTime = b.time;
+    const projected = index > start;
+    const description = b.time + ' IST · ' + (projected ? 'Median ' : 'Close ') + number(b.close) +
+      (projected ? ' · 50% band ' + number(b.lower_25) + ' – ' + number(b.upper_75) : '') +
+      (index === bars.length-1 && observed !== null ? ' · Actual ' + number(observed) : '');
+    cursor.setAttribute('x1',x(index));
+    cursor.setAttribute('x2',x(index));
+    marker.setAttribute('cx',x(index));
+    marker.setAttribute('cy',y(b.close));
+    svg.setAttribute('aria-valuenow',index+1);
+    svg.setAttribute('aria-valuetext',description);
+    readout.textContent = description;
+  }
+  svg.setAttribute('tabindex','0');
+  svg.setAttribute('role','slider');
+  svg.setAttribute('aria-label','Inspect chart bars using the arrow keys');
+  svg.setAttribute('aria-valuemin','1');
+  svg.setAttribute('aria-valuemax',bars.length);
+  const savedIndex = inspectedForecast === forecastKey ? bars.findIndex(b => b.time === inspectedTime) : -1;
+  select(savedIndex < 0 ? start : savedIndex);
+  if (refocus) svg.focus({preventScroll:true});
+  function selectPointer(e) {
+    const rect = svg.getBoundingClientRect();
+    if (rect.width) select(Math.round((((e.clientX-rect.left)*width/rect.width)-left)/(right-left)*(bars.length-1)));
+  }
+  svg.addEventListener('pointermove',selectPointer);
+  svg.addEventListener('pointerdown',selectPointer);
+  svg.addEventListener('keydown',e=>{
+    const targets = {ArrowRight:index+1,ArrowLeft:index-1,ArrowUp:index+1,ArrowDown:index-1,Home:0,End:bars.length-1};
+    if (Object.hasOwn(targets,e.key)) {
+      e.preventDefault();
+      select(targets[e.key]);
+    }
   });
 }
-
-function renderInteractiveChart() {
-  const data = getActiveData();
-  if (!data) return;
-
-  const hist = data.historical.slice(-25); // latest 25 bars
-  const pred = data.predictions;
-
-  const canvas = document.getElementById('forecast-chart');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-
-  // Theme-aware palette for the chart
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-  const gridColor = isLight ? 'rgba(2, 132, 199, 0.08)' : 'rgba(100, 210, 236, 0.06)';
-  const textColor = isLight ? '#475569' : '#5a6a82';
-  const histColor = isLight ? '#0284c7' : '#64d2ec';
-  const tooltipBg = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(5, 12, 24, 0.92)';
-  const tooltipTitle = isLight ? '#0a192f' : '#edf0f7';
-  const tooltipBody = isLight ? '#334e68' : '#8a99b2';
-  const tooltipBorder = isLight ? 'rgba(2, 132, 199, 0.3)' : 'rgba(100, 210, 236, 0.25)';
-
-  // Format labels nicely with Indian market close & session awareness
-  const formatLabel = (tStr) => {
-    if (tStr.includes(' ')) {
-      return tStr.split(' ')[1]; // HH:MM
-    }
-    return tStr.slice(5); // MM-DD for daily
+function changeTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  setText('theme-toggle', theme === 'dark' ? 'Light theme' : 'Dark theme');
+}
+function init() {
+  route();
+  tabs();
+  let saved;
+  try { saved = localStorage.getItem('algogpt_theme'); } catch { /* Browser storage may be disabled. */ }
+  const fromUrl = new URLSearchParams(location.search).get('theme');
+  changeTheme((fromUrl || saved) === 'light' ? 'light' : 'dark');
+  el('theme-toggle').addEventListener('click',()=>{
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    changeTheme(next);
+    try { localStorage.setItem('algogpt_theme',next); } catch { /* Keep session theme. */ }
+  });
+  for (const b of document.querySelectorAll('.symbol-tab')) b.addEventListener('click',()=>navigate(link('',b.dataset.symbol)));
+  for (const b of document.querySelectorAll('.interval-tab')) b.addEventListener('click',()=>navigate(link('',symbol,b.dataset.interval)));
+  for (const b of document.querySelectorAll('.view-btn')) b.addEventListener('click',()=>navigate(link(archiveId,symbol,interval,b.dataset.view)));
+  el('show-more').addEventListener('click',()=>{pageSize += 12; renderScores();});
+  el('refresh-data-btn').addEventListener('click',refresh);
+  el('show-samples').addEventListener('change',()=>{
+    if (activeData) drawChart(activeData,scorecard?.outcomes?.[activeData.forecast_id],bandFields(activeData));
+  });
+  window.addEventListener('popstate',()=>{route(); pageSize=12; display();});
+  window.setInterval(renderFreshness,60000);
+  const pollIfDue = ()=>{
+    if (!document.hidden && Date.now() - lastRefreshAt >= pollInterval) refresh({background:true});
   };
-
-  const labels = [
-    ...hist.map((b) => {
-      if (b.time.endsWith('15:30')) return `${b.time.split(' ')[1]} Close`;
-      return formatLabel(b.time);
-    }),
-    ...pred.map((p, i) => {
-      const isNewDay = i === 0 || p.time.split(' ')[0] !== pred[i-1].time.split(' ')[0];
-      const timePart = formatLabel(p.time);
-      const datePart = isNewDay && p.time.includes(' ') ? `${p.time.slice(5, 10)} ` : '';
-      return `+${i+1} (${datePart}${timePart})`;
-    })
-  ];
-
-  const histPrices = hist.map(b => b.close);
-  const lastPrice = histPrices[histPrices.length - 1];
-
-  // Align prediction arrays with anchor point
-  const nullPadding = new Array(hist.length - 1).fill(null);
-  const meanForecast = [...nullPadding, lastPrice, ...pred.map(p => p.close)];
-  const upper90 = [...nullPadding, lastPrice, ...pred.map(p => p.upper_90)];
-  const lower10 = [...nullPadding, lastPrice, ...pred.map(p => p.lower_10)];
-  const upper75 = [...nullPadding, lastPrice, ...pred.map(p => p.upper_75)];
-  const lower25 = [...nullPadding, lastPrice, ...pred.map(p => p.lower_25)];
-
-  const datasets = [
-    {
-      label: `Historical (${data.interval})`,
-      data: [...histPrices, ...new Array(pred.length).fill(null)],
-      borderColor: histColor,
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      pointRadius: 1.5,
-      tension: 0.15
-    },
-    {
-      label: 'Kronos Mean Forecast',
-      data: meanForecast,
-      borderColor: '#ea580c',
-      backgroundColor: 'transparent',
-      borderWidth: 2.8,
-      pointRadius: 2.5,
-      pointBackgroundColor: '#ea580c',
-      tension: 0.2
-    },
-    {
-      label: '50% Confidence Upper',
-      data: upper75,
-      borderColor: 'transparent',
-      backgroundColor: 'rgba(249, 115, 22, 0.22)',
-      fill: '+1',
-      pointRadius: 0
-    },
-    {
-      label: '50% Confidence Lower',
-      data: lower25,
-      borderColor: 'transparent',
-      backgroundColor: 'transparent',
-      pointRadius: 0
-    },
-    {
-      label: '90% Confidence Upper',
-      data: upper90,
-      borderColor: 'rgba(249, 115, 22, 0.3)',
-      borderDash: [4, 4],
-      backgroundColor: 'rgba(249, 115, 22, 0.10)',
-      fill: '+1',
-      pointRadius: 0
-    },
-    {
-      label: '90% Confidence Lower',
-      data: lower10,
-      borderColor: 'rgba(249, 115, 22, 0.3)',
-      borderDash: [4, 4],
-      backgroundColor: 'transparent',
-      pointRadius: 0
-    }
-  ];
-
-  // Add sample Monte Carlo paths
-  if (pred[0].samples && pred[0].samples.length >= 3) {
-    for (let s = 0; s < 3; s++) {
-      const sPath = [...nullPadding, lastPrice, ...pred.map(p => p.samples[s])];
-      datasets.push({
-        label: `MC Simulation Path #${s+1}`,
-        data: sPath,
-        borderColor: isLight ? 'rgba(234, 88, 12, 0.45)' : 'rgba(249, 115, 22, 0.35)',
-        borderWidth: 1,
-        borderDash: [2, 2],
-        pointRadius: 0,
-        fill: false
-      });
-    }
+  window.setInterval(pollIfDue,60000);
+  document.addEventListener('visibilitychange',pollIfDue);
+  let lastWidth = 0;
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(([entry])=>{
+      const width = Math.round(entry.contentRect.width);
+      if (width === lastWidth) return;
+      lastWidth = width;
+      if (activeData && width) drawChart(activeData,scorecard?.outcomes?.[activeData.forecast_id],bandFields(activeData));
+    }).observe(el('chart-surface'));
   }
-
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 350 },
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top',
-          labels: {
-            color: textColor,
-            font: { size: 11, family: 'Inter' },
-            filter: (item) => !item.text.includes('Lower')
-          }
-        },
-        tooltip: {
-          backgroundColor: tooltipBg,
-          titleColor: tooltipTitle,
-          bodyColor: tooltipBody,
-          borderColor: tooltipBorder,
-          borderWidth: 1,
-          padding: 10,
-          cornerRadius: 6,
-          titleFont: { size: 11, family: 'JetBrains Mono', weight: '600' },
-          bodyFont: { size: 11, family: 'JetBrains Mono' },
-          boxPadding: 4,
-          callbacks: {
-            title: function(tooltipItems) {
-              if (!tooltipItems.length) return '';
-              const idx = tooltipItems[0].dataIndex;
-              if (idx < hist.length) {
-                return `${hist[idx].time} IST (NSE Historical Market Bar)`;
-              } else {
-                const pIdx = idx - hist.length;
-                return `${pred[pIdx].time} IST (Kronos Forecast Step +${pIdx + 1})`;
-              }
-            },
-            label: function(context) {
-              if (context.parsed.y === null) return null;
-              return `${context.dataset.label}: ₹${context.parsed.y.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { color: gridColor },
-          ticks: { color: textColor, maxTicksLimit: 14, font: { size: 10 } }
-        },
-        y: {
-          grid: { color: gridColor },
-          ticks: {
-            color: textColor,
-            font: { size: 10 },
-            callback: (val) => '₹' + Number(val).toLocaleString('en-IN')
-          }
-        }
-      }
-    }
-  });
+  refresh();
 }
+document.addEventListener('DOMContentLoaded',init);

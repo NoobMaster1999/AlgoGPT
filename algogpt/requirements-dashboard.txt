@@ -1,0 +1,9 @@
+# Install CPU torch first, as in the GitHub Pages workflow.
+torch>=2.0
+pandas>=2.0
+numpy>=1.24
+einops>=0.7
+huggingface_hub>=0.23
+safetensors>=0.4
+yfinance>=0.2
+pandas_market_calendars>=5.6

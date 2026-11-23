@@ -1,0 +1,81 @@
+name: Forecast dashboard
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/dashboard.yml'
+  schedule:
+    - cron: '17 4-9,11 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: Fetch market data and issue new forecasts before deployment
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forecast-dashboard-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install publisher dependencies
+        if: github.event_name == 'schedule' || inputs.refresh == true
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r algogpt/requirements-dashboard.txt
+      - name: Restore model weights
+        if: github.event_name == 'schedule' || inputs.refresh == true
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub
+          key: kronos-small-tokenizer-base-v1
+      - name: Update market observations and forecasts
+        if: github.event_name == 'schedule' || inputs.refresh == true
+        run: python run_update.py
+      - name: Verify dashboard before publishing
+        run: |
+          node --check docs/app.js
+          node --check docs/pilot.js
+          python scripts/check_dashboard.py
+      - name: Save verified archive to the default branch
+        if: github.event_name == 'schedule' || inputs.refresh == true
+        run: |
+          git add -- docs/data
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Update published forecast archive"
+            git push origin "HEAD:${GITHUB_REF}"
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the verified docs folder
+        id: deployment
+        uses: actions/deploy-pages@v4
